@@ -1,0 +1,44 @@
+{
+  "name": "tasker",
+  "version": "1.0.0",
+  "description": "Tasker - Universal AI-Powered Productivity Suite",
+  "main": "electron/main.js",
+  "author": "Tasker Team",
+  "scripts": {
+    "dev:client": "npm --prefix client run dev",
+    "dev:server": "npm --prefix server run dev",
+    "build:client": "npm --prefix client run build",
+    "start:server": "npm --prefix server start",
+    "start:desktop": "electron .",
+    "build:exe": "npm run build:client && electron-builder --win nsis --x64",
+    "build:portable": "npm run build:client && electron-builder --win portable --x64",
+    "build:all": "npm run build:client && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.tasker.productivity",
+    "productName": "Tasker",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "client/dist/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^41.2.0",
+    "electron-builder": "^26.7.0"
+  }
+}
