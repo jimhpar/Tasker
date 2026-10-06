@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { taskApi, clientApi, taskTypeApi } from '../services/api';
+import { taskApi, clientApi, taskTypeApi, teamApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import {
   Plus,
@@ -21,6 +21,8 @@ import {
   Paperclip,
   Building,
   Calendar,
+  Tag,
+  Users,
   X
 } from 'lucide-react';
 
@@ -35,10 +37,24 @@ export default function WorkDashboard({
   const [activeWorkspace, setActiveWorkspace] = useState('Personal'); // 'Personal' | 'Team'
   const [activeView, setActiveView] = useState('kanban'); // 'kanban' | 'list'
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMember, setSelectedMember] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [clients, setClients] = useState([]);
   const [taskTypes, setTaskTypes] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [selectedTeamId, setSelectedTeamId] = useState(() => teamApi.getActiveTeamId());
+
+  // Listen for real-time task updates
+  useEffect(() => {
+    const handleSync = () => {
+      taskApi.getAll().then(res => {
+        if (Array.isArray(res)) setTasks(res);
+      }).catch(() => {});
+    };
+    window.addEventListener('tasker_tasks_updated', handleSync);
+    return () => window.removeEventListener('tasker_tasks_updated', handleSync);
+  }, [setTasks]);
 
   // Active 3-dot dropdown menu tracker
   const [openMenuTaskId, setOpenMenuTaskId] = useState(null);
@@ -64,17 +80,77 @@ export default function WorkDashboard({
 
   const loadFilters = async () => {
     try {
-      const [cList, tList] = await Promise.all([clientApi.getAll(), taskTypeApi.getAll()]);
+      const [cList, tList, tmList] = await Promise.all([
+        clientApi.getAll(),
+        taskTypeApi.getAll(),
+        teamApi.getTeams()
+      ]);
       setClients(cList);
       setTaskTypes(tList);
+      setTeams(tmList || []);
+      const activeId = teamApi.getActiveTeamId();
+      if (activeId) {
+        setSelectedTeamId(activeId);
+      } else if (tmList && tmList.length > 0) {
+        setSelectedTeamId(tmList[0]._id);
+      }
     } catch (e) {
       console.error(e);
     }
   };
 
-  // Filter tasks based on workspace, search query, client, and category
+  const currentTeamObj = teams.find(t => t._id === selectedTeamId) || teams[0];
+  const activeTeamMembers = currentTeamObj?.members || [];
+
+  const getTaskTypeName = (taskItem) => {
+    if (taskItem.taskTypeId && typeof taskItem.taskTypeId === 'object' && taskItem.taskTypeId.name) {
+      return taskItem.taskTypeId.name;
+    }
+    if (taskItem.taskTypeId) {
+      const found = taskTypes.find((t) => t._id === taskItem.taskTypeId);
+      if (found) return found.name;
+    }
+    return null;
+  };
+
+  // Filter tasks based on workspace, selected team, member, search query, client, and task type
   const filteredTasks = tasks.filter((taskItem) => {
     if (taskItem.workspaceType !== activeWorkspace) return false;
+
+    // Filter personal tasks strictly by user ownership so Elias Sunny doesn't see Zim's personal tasks!
+    if (activeWorkspace === 'Personal') {
+      const myId = (user?._id || user?.id || '').toString().toLowerCase();
+      const myUsername = (user?.username || '').toLowerCase();
+      const ownerId = (taskItem.userId?._id || taskItem.userId || '').toString().toLowerCase();
+      const ownerName = (taskItem.createdBy || '').toLowerCase();
+      if (ownerId || ownerName) {
+        const isMine = (myId && ownerId === myId) ||
+                       (myUsername && ownerName === myUsername) ||
+                       (myUsername && ownerId === myUsername);
+        if (!isMine) return false;
+      } else if (myUsername !== 'zim' && myUsername !== 'zim_founder') {
+        return false;
+      }
+    }
+
+    // Filter out future scheduled tasks from today's Work Dashboard (user requirement: future date tasks show in calendar view)
+    const taskDateStr = (taskItem.dueDate || taskItem.scheduledDate || '').split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (taskDateStr && taskDateStr > todayStr) {
+      return false;
+    }
+
+    if (activeWorkspace === 'Team' && selectedTeamId) {
+      const itemTeamId = taskItem.teamId?._id || taskItem.teamId;
+      if (itemTeamId && itemTeamId !== selectedTeamId) return false;
+      if (!itemTeamId && teams.length > 0 && selectedTeamId !== teams[0]._id) return false;
+
+      // Filter by Member in Team Dashboard
+      if (selectedMember) {
+        const assignedId = taskItem.assignedTo?._id || taskItem.assignedTo?.username || taskItem.assignedTo;
+        if (assignedId !== selectedMember) return false;
+      }
+    }
     if (selectedClient && taskItem.clientId?._id !== selectedClient && taskItem.clientId !== selectedClient) return false;
     if (selectedType && taskItem.taskTypeId?._id !== selectedType && taskItem.taskTypeId !== selectedType) return false;
     if (searchQuery) {
@@ -178,8 +254,8 @@ export default function WorkDashboard({
           paddingBottom: 16
         }}
       >
-        {/* Workspace Switcher: Personal vs Team */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Workspace Switcher: Personal vs Team + Team Picker */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div
             style={{
               display: 'flex',
@@ -196,9 +272,11 @@ export default function WorkDashboard({
                 borderRadius: 'var(--radius-full)',
                 fontWeight: 700,
                 fontSize: '0.85rem',
-                color: activeWorkspace === 'Personal' ? '#ffffff' : 'var(--text-secondary)',
-                background: activeWorkspace === 'Personal' ? 'var(--primary)' : 'transparent',
-                boxShadow: activeWorkspace === 'Personal' ? '0 2px 8px var(--primary-glow)' : 'none'
+                color: activeWorkspace === 'Personal' ? 'var(--active-btn-text)' : 'var(--text-secondary)',
+                background: activeWorkspace === 'Personal' ? 'var(--active-btn-bg)' : 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'var(--transition-fast)'
               }}
             >
               👤 {t.personal}
@@ -210,14 +288,59 @@ export default function WorkDashboard({
                 borderRadius: 'var(--radius-full)',
                 fontWeight: 700,
                 fontSize: '0.85rem',
-                color: activeWorkspace === 'Team' ? '#ffffff' : 'var(--text-secondary)',
-                background: activeWorkspace === 'Team' ? 'var(--primary)' : 'transparent',
-                boxShadow: activeWorkspace === 'Team' ? '0 2px 8px var(--primary-glow)' : 'none'
+                color: activeWorkspace === 'Team' ? 'var(--active-btn-text)' : 'var(--text-secondary)',
+                background: activeWorkspace === 'Team' ? 'var(--active-btn-bg)' : 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'var(--transition-fast)'
               }}
             >
               👥 {t.team}
             </button>
           </div>
+
+          {/* Team Workspace: Dedicated Team Selector Dropdown */}
+          {activeWorkspace === 'Team' && teams.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'var(--bg-card)',
+                padding: '4px 12px',
+                borderRadius: 'var(--radius-full)',
+                border: '1px solid var(--border-subtle)'
+              }}
+            >
+              <Users size={15} color="var(--text-muted)" />
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                {t.selectTeam || (lang === 'bn' ? 'টিম:' : 'Team:')}
+              </span>
+              <select
+                value={selectedTeamId}
+                onChange={(e) => {
+                  setSelectedTeamId(e.target.value);
+                  teamApi.setActiveTeamId(e.target.value);
+                }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  color: 'var(--text-main)',
+                  padding: '4px 4px',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                {teams.map((tm) => (
+                  <option key={tm._id} value={tm._id} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
+                    {tm.name} ({tm.members?.length || 1} {lang === 'bn' ? 'সদস্য' : 'members'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* View Switchers (Kanban | List) + Add Task Button */}
@@ -264,7 +387,7 @@ export default function WorkDashboard({
           </div>
 
           <button
-            onClick={() => onOpenNewTask()}
+            onClick={() => onOpenNewTask({ workspaceType: activeWorkspace, teamId: selectedTeamId })}
             className="btn btn-primary"
             style={{ padding: '8px 16px', fontSize: '0.85rem' }}
           >
@@ -305,11 +428,29 @@ export default function WorkDashboard({
           />
         </div>
 
-        {/* Right Side: Filters (Client, Category, Reset) */}
+        {/* Right Side: Filters (Client, Task Type, Reset) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             <Filter size={15} /> {t.filterBy}
           </div>
+
+          {/* Team Member Filter (Requested for Team Dashboard) */}
+          {activeWorkspace === 'Team' && (
+            <select
+              value={selectedMember}
+              onChange={(e) => setSelectedMember(e.target.value)}
+              style={{ padding: '7px 12px', fontSize: '0.8rem', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border-subtle)', color: 'var(--text-main)' }}
+            >
+              <option value="">{lang === 'bn' ? 'সকল মেম্বার (All Members)' : 'All Members'}</option>
+              {activeTeamMembers.map((m) => {
+                const mId = m._id || m.id || m.username;
+                const mName = m.fullName || m.profile?.fullName || m.username;
+                return (
+                  <option key={mId} value={mId}>{mName}</option>
+                );
+              })}
+            </select>
+          )}
 
           {/* Client Filter */}
           <select
@@ -323,13 +464,13 @@ export default function WorkDashboard({
             ))}
           </select>
 
-          {/* Task Category Filter */}
+          {/* Task Type Filter (formerly Category) */}
           <select
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
             style={{ padding: '7px 12px', fontSize: '0.8rem', background: 'var(--bg-card)', borderRadius: 8 }}
           >
-            <option value="">{t.allCategories}</option>
+            <option value="">{t.allTaskTypes || t.allCategories || (lang === 'bn' ? 'সকল টাস্ক টাইপ' : 'All Task Types')}</option>
             {taskTypes.map((typeItem) => (
               <option key={typeItem._id} value={typeItem._id}>{typeItem.name}</option>
             ))}
@@ -391,6 +532,7 @@ export default function WorkDashboard({
                   col.tasks.map((taskItem) => {
                     const isDoneOrApproved = taskItem.status === 'Done' || taskItem.status === 'Approved';
                     const isMenuOpen = openMenuTaskId === taskItem._id;
+                    const taskTypeName = getTaskTypeName(taskItem);
 
                     return (
                       <div
@@ -406,11 +548,31 @@ export default function WorkDashboard({
                           position: 'relative'
                         }}
                       >
-                        {/* Title & 3-Dot Menu */}
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                          <h4 style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)', lineHeight: 1.4, flex: 1 }}>
-                            {taskItem.title}
-                          </h4>
+                        {/* Top Bar: Task Type Badge & 3-Dot Menu */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          {taskTypeName ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                background: 'var(--bg-input)',
+                                border: '1px solid var(--border-subtle)',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                color: 'var(--text-main)'
+                              }}
+                            >
+                              <Tag size={11} color="var(--text-muted)" />
+                              {taskTypeName}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                              {taskItem.workspaceType === 'Team' ? '👥 Team' : '👤 Personal'}
+                            </span>
+                          )}
 
                           {/* 3-Dot Menu Button */}
                           <div style={{ position: 'relative' }}>
@@ -512,6 +674,11 @@ export default function WorkDashboard({
                             )}
                           </div>
                         </div>
+
+                        {/* Task Title */}
+                        <h4 style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)', lineHeight: 1.4, margin: '2px 0 0' }}>
+                          {taskItem.title}
+                        </h4>
 
                         {taskItem.brief && (
                           <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
@@ -649,7 +816,7 @@ export default function WorkDashboard({
           <div style={{ display: 'grid', gridTemplateColumns: '40px 1.5fr 1fr 1fr 140px 100px', padding: '12px 16px', background: 'var(--bg-input)', fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
             <div></div>
             <div>{t.taskTitleCol}</div>
-            <div>{t.clientCategoryCol}</div>
+            <div>{t.clientTaskTypeCol || t.clientCategoryCol || 'Client / Task Type'}</div>
             <div>{t.dateCol}</div>
             <div>{t.priorityCol}</div>
             <div style={{ textAlign: 'right' }}>{t.actionsCol}</div>
@@ -663,6 +830,7 @@ export default function WorkDashboard({
             ) : (
               filteredTasks.map((taskItem) => {
                 const isDone = taskItem.status === 'Done' || taskItem.status === 'Approved';
+                const taskTypeName = getTaskTypeName(taskItem);
                 return (
                   <div
                     key={taskItem._id}
@@ -694,7 +862,14 @@ export default function WorkDashboard({
                     </div>
 
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      {taskItem.clientId?.name || '—'}
+                      <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                        {taskItem.clientId?.name || '—'}
+                      </div>
+                      {taskTypeName && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                          <Tag size={10} /> {taskTypeName}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>

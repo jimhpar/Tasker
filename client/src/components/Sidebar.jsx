@@ -1,39 +1,59 @@
 import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   Calendar,
+  UserCheck,
   Users,
   Globe,
   BookUser,
   FolderTree,
-  ChevronRight
+  ChevronRight,
+  Shield,
+  Layers
 } from 'lucide-react';
 
-export default function Sidebar({ activeTab, setActiveTab, teamRequestsCount = 0 }) {
+export default function Sidebar({
+  activeTab,
+  setActiveTab,
+  teamRequestsCount = 0,
+  pendingConnectionRequestsCount = 0,
+  hasGlobalUnread = false
+}) {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const usernameLower = user?.username?.toLowerCase() || '';
+  const isAdmin = user?.role === 'admin' ||
+    usernameLower === 'zim' ||
+    usernameLower === 'zim_founder' ||
+    usernameLower === 'admin';
 
   const menuItems = [
     {
       id: 'dashboard',
       label: t.workDashboard,
       sublabel: t.currentWorkspace,
-      icon: LayoutDashboard,
-      color: '#6366f1'
+      icon: LayoutDashboard
     },
     {
       id: 'calendar',
       label: t.calendarView,
       sublabel: t.calendarSub,
-      icon: Calendar,
-      color: '#06b6d4'
+      icon: Calendar
+    },
+    {
+      id: 'people',
+      label: t.people || 'People',
+      sublabel: t.peopleSub || 'Contacts & Network',
+      icon: UserCheck,
+      badge: pendingConnectionRequestsCount > 0 ? pendingConnectionRequestsCount : null
     },
     {
       id: 'team',
       label: t.myTeam,
       sublabel: t.teamSub,
       icon: Users,
-      color: '#10b981',
       badge: teamRequestsCount > 0 ? teamRequestsCount : null
     },
     {
@@ -41,21 +61,19 @@ export default function Sidebar({ activeTab, setActiveTab, teamRequestsCount = 0
       label: t.community,
       sublabel: t.communitySub,
       icon: Globe,
-      color: '#8b5cf6'
+      hasDot: hasGlobalUnread
     },
     {
       id: 'clients',
       label: t.clientDictionary,
       sublabel: t.clientSub,
-      icon: BookUser,
-      color: '#f59e0b'
+      icon: BookUser
     },
     {
       id: 'task-directory',
       label: t.taskDirectory,
       sublabel: t.taskDirectorySub,
-      icon: FolderTree,
-      color: '#ec4899'
+      icon: FolderTree
     }
   ];
 
@@ -64,7 +82,7 @@ export default function Sidebar({ activeTab, setActiveTab, teamRequestsCount = 0
       style={{
         width: 260,
         background: 'var(--bg-surface)',
-        borderRight: 'var(--glass-border)',
+        borderRight: '1px solid var(--border-subtle)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
@@ -74,14 +92,15 @@ export default function Sidebar({ activeTab, setActiveTab, teamRequestsCount = 0
       }}
     >
       <div>
-        <div style={{ padding: '8px 12px 14px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-          {t.mainNavigation}
+        <div style={{ padding: '8px 12px 14px', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+          {t.mainNavigation || 'Main Menu'}
         </div>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
+
             return (
               <button
                 key={item.id}
@@ -91,13 +110,12 @@ export default function Sidebar({ activeTab, setActiveTab, teamRequestsCount = 0
                   alignItems: 'center',
                   gap: 12,
                   width: '100%',
-                  padding: '10px 12px',
+                  padding: '9px 12px',
                   borderRadius: 'var(--radius-md)',
-                  background: isActive ? 'var(--primary-glow)' : 'transparent',
-                  border: isActive ? '1px solid var(--border-focus)' : '1px solid transparent',
-                  color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                  background: isActive ? 'var(--active-btn-bg)' : 'transparent',
+                  color: isActive ? 'var(--active-btn-text)' : 'var(--text-secondary)',
                   textAlign: 'left',
-                  transition: 'all 0.2s',
+                  transition: 'all 0.15s ease',
                   position: 'relative'
                 }}
                 className={isActive ? '' : 'btn-ghost'}
@@ -110,19 +128,19 @@ export default function Sidebar({ activeTab, setActiveTab, teamRequestsCount = 0
                     width: 32,
                     height: 32,
                     borderRadius: 8,
-                    background: isActive ? 'var(--primary)' : 'var(--bg-card)',
-                    color: isActive ? '#ffffff' : item.color,
+                    background: isActive ? 'var(--active-btn-icon-bg)' : 'var(--bg-input)',
+                    color: isActive ? 'var(--active-btn-text)' : 'var(--text-main)',
                     flexShrink: 0
                   }}
                 >
-                  <Icon size={18} />
+                  <Icon size={17} />
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.875rem', fontWeight: isActive ? 700 : 600, color: isActive ? 'var(--text-main)' : 'inherit', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: '0.86rem', fontWeight: isActive ? 700 : 600, color: isActive ? 'var(--active-btn-text)' : 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {item.label}
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: '0.7rem', color: isActive ? 'var(--active-btn-subtext)' : 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {item.sublabel}
                   </div>
                 </div>
@@ -134,7 +152,7 @@ export default function Sidebar({ activeTab, setActiveTab, teamRequestsCount = 0
                       color: '#ffffff',
                       fontSize: '0.7rem',
                       fontWeight: 700,
-                      padding: '2px 6px',
+                      padding: '2px 7px',
                       borderRadius: 'var(--radius-full)'
                     }}
                   >
@@ -142,19 +160,113 @@ export default function Sidebar({ activeTab, setActiveTab, teamRequestsCount = 0
                   </span>
                 )}
 
+                {item.hasDot && (
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: '#ef4444',
+                      boxShadow: '0 0 6px rgba(239, 68, 68, 0.7)',
+                      flexShrink: 0
+                    }}
+                    title="New messages in Community"
+                  />
+                )}
+
                 {isActive && (
-                  <ChevronRight size={16} color="var(--primary)" />
+                  <ChevronRight size={15} color="rgba(255, 255, 255, 0.7)" />
                 )}
               </button>
             );
           })}
         </nav>
+
+        {/* Dedicated Admin Menu (Visible only for admin accounts) */}
+        {isAdmin && (
+          <div style={{ marginTop: 18 }}>
+            <div style={{ padding: '8px 12px 8px', fontSize: '0.72rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Shield size={13} color="#ef4444" />
+              <span>Admin Menu</span>
+            </div>
+
+            <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {[
+                {
+                  id: 'admin-users',
+                  label: 'Users',
+                  sublabel: 'Manage & Assign Plans',
+                  icon: Users
+                },
+                {
+                  id: 'admin-plans',
+                  label: 'Manage Plans',
+                  sublabel: 'SaaS Tiers & Privileges',
+                  icon: Layers
+                }
+              ].map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      background: isActive ? 'var(--active-btn-bg)' : 'transparent',
+                      color: isActive ? 'var(--active-btn-text)' : 'var(--text-secondary)',
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease',
+                      position: 'relative'
+                    }}
+                    className={isActive ? '' : 'btn-ghost'}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        background: isActive ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.08)',
+                        color: isActive ? 'var(--active-btn-text)' : '#ef4444',
+                        flexShrink: 0
+                      }}
+                    >
+                      <Icon size={17} />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.86rem', fontWeight: isActive ? 700 : 600, color: isActive ? 'var(--active-btn-text)' : 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: isActive ? 'var(--active-btn-subtext)' : 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.sublabel}
+                      </div>
+                    </div>
+
+                    {isActive && (
+                      <ChevronRight size={15} color="rgba(255, 255, 255, 0.7)" />
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        )}
       </div>
 
       {/* Storage and System Info Footer */}
       <div
         style={{
-          background: 'var(--bg-card)',
+          background: 'var(--bg-input)',
           border: '1px solid var(--border-subtle)',
           borderRadius: 'var(--radius-md)',
           padding: '12px',
@@ -162,11 +274,11 @@ export default function Sidebar({ activeTab, setActiveTab, teamRequestsCount = 0
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{t.storageMode}</span>
-          <span style={{ color: 'var(--success)', fontWeight: 700 }}>{t.zeroCostStorage}</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{t.storageMode || 'Storage Mode'}</span>
+          <span style={{ color: 'var(--success)', fontWeight: 700 }}>• Local & P2P</span>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', lineHeight: 1.4 }}>
-          {t.storageDesc}
+          Files are saved securely on your device, not on public cloud servers.
         </p>
       </div>
     </aside>

@@ -15,6 +15,21 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     default: ''
   },
+  phone: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
+  },
+  plan: {
+    type: String,
+    enum: ['free', 'pro', 'business', 'enterprise'],
+    default: 'free'
+  },
   password: {
     type: String,
     required: true
@@ -26,7 +41,7 @@ const userSchema = new mongoose.Schema({
     links: [{ type: String }]
   },
   settings: {
-    theme: { type: String, enum: ['Light', 'Gray', 'Dark'], default: 'Dark' },
+    theme: { type: String, enum: ['Light', 'Gray', 'Dark'], default: 'Light' },
     taskCreationMode: { type: String, enum: ['Voice', 'Simple', 'Pro'], default: 'Simple' },
     localAttachmentDir: { type: String, default: 'C:/TaskerFiles' }
   }

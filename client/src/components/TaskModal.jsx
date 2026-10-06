@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { taskApi, clientApi, taskTypeApi } from '../services/api';
+import { taskApi, clientApi, taskTypeApi, teamApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import {
   X,
@@ -11,9 +11,13 @@ import {
   Link,
   Tag,
   Building,
+  Users,
   Trash2,
   Check,
-  AlertCircle
+  AlertCircle,
+  Bot,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 
 export default function TaskModal({
@@ -21,34 +25,29 @@ export default function TaskModal({
   onClose,
   onTaskCreated,
   initialDate = null,
+  initialWorkspaceType = 'Personal',
+  initialTeamId = null,
   taskToEdit = null
 }) {
-  if (!isOpen) return null;
-
   const { t, lang } = useLanguage();
 
   const [clients, setClients] = useState([]);
   const [taskTypes, setTaskTypes] = useState([]);
+  const [teams, setTeams] = useState([]);
 
   // Form fields
-  const [title, setTitle] = useState(taskToEdit?.title || '');
-  const [brief, setBrief] = useState(taskToEdit?.brief || '');
-  const [sourceLink, setSourceLink] = useState(taskToEdit?.sourceLink || '');
-  const [status, setStatus] = useState(taskToEdit?.status || 'To Do');
-  const [priority, setPriority] = useState(taskToEdit?.priority || 'Medium');
-  const [workspaceType, setWorkspaceType] = useState(taskToEdit?.workspaceType || 'Personal');
-  const [clientId, setClientId] = useState(taskToEdit?.clientId?._id || taskToEdit?.clientId || '');
-  const [taskTypeId, setTaskTypeId] = useState(taskToEdit?.taskTypeId?._id || taskToEdit?.taskTypeId || '');
-  const [scheduledDate, setScheduledDate] = useState(() => {
-    if (taskToEdit?.scheduledDate) {
-      return new Date(taskToEdit.scheduledDate).toISOString().split('T')[0];
-    }
-    return initialDate ? new Date(initialDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-  });
-  const [dueDate, setDueDate] = useState(() => {
-    return taskToEdit?.dueDate ? new Date(taskToEdit.dueDate).toISOString().split('T')[0] : '';
-  });
-  const [localFiles, setLocalFiles] = useState(taskToEdit?.localFileAttachments || []);
+  const [title, setTitle] = useState('');
+  const [brief, setBrief] = useState('');
+  const [sourceLink, setSourceLink] = useState('');
+  const [status, setStatus] = useState('To Do');
+  const [priority, setPriority] = useState('Medium');
+  const [workspaceType, setWorkspaceType] = useState('Personal');
+  const [teamId, setTeamId] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [taskTypeId, setTaskTypeId] = useState('');
+  const [scheduledDate, setScheduledDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState('');
+  const [localFiles, setLocalFiles] = useState([]);
 
   // Voice recording (Press & Hold or Click to Record)
   const [isRecording, setIsRecording] = useState(false);
@@ -63,22 +62,97 @@ export default function TaskModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // AI & Time Tracking fields
+  const [engageAI, setEngageAI] = useState(true);
+  const [scheduledStartTime, setScheduledStartTime] = useState('');
+  const [scheduledEndTime, setScheduledEndTime] = useState('');
+
+  // Synchronize state when modal opens or props change
+  useEffect(() => {
+    if (isOpen) {
+      if (taskToEdit) {
+        setTitle(taskToEdit.title || '');
+        setBrief(taskToEdit.brief || '');
+        setSourceLink(taskToEdit.sourceLink || '');
+        setStatus(taskToEdit.status || 'To Do');
+        setPriority(taskToEdit.priority || 'Medium');
+        setWorkspaceType(taskToEdit.workspaceType || 'Personal');
+        setTeamId(taskToEdit.teamId?._id || taskToEdit.teamId || '');
+        setClientId(taskToEdit.clientId?._id || taskToEdit.clientId || '');
+        setTaskTypeId(taskToEdit.taskTypeId?._id || taskToEdit.taskTypeId || '');
+        setEngageAI(taskToEdit.engageAI ?? true);
+        setScheduledStartTime(taskToEdit.scheduledStartTime || '');
+        setScheduledEndTime(taskToEdit.scheduledEndTime || '');
+        setScheduledDate(
+          taskToEdit.scheduledDate
+            ? new Date(taskToEdit.scheduledDate).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0]
+        );
+        setDueDate(
+          taskToEdit.dueDate
+            ? new Date(taskToEdit.dueDate).toISOString().split('T')[0]
+            : ''
+        );
+        setLocalFiles(taskToEdit.localFileAttachments || []);
+      } else {
+        setTitle('');
+        setBrief('');
+        setSourceLink('');
+        setStatus('To Do');
+        setPriority('Medium');
+        setWorkspaceType(initialWorkspaceType || 'Personal');
+        setTeamId(initialTeamId || teamApi.getActiveTeamId() || '');
+        setClientId('');
+        setEngageAI(true);
+        setScheduledStartTime('');
+        setScheduledEndTime('');
+        setScheduledDate(
+          initialDate
+            ? new Date(initialDate).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0]
+        );
+        setDueDate('');
+        setLocalFiles([]);
+      }
+    }
+  }, [isOpen, taskToEdit, initialDate, initialWorkspaceType, initialTeamId]);
+
   useEffect(() => {
     loadMetadata();
   }, []);
 
   const loadMetadata = async () => {
     try {
-      const [cList, tList] = await Promise.all([clientApi.getAll(), taskTypeApi.getAll()]);
-      setClients(cList);
-      setTaskTypes(tList);
-      if (!taskToEdit && tList.length > 0 && !taskTypeId) {
+      const [cList, tList, tmList] = await Promise.all([
+        clientApi.getAll(),
+        taskTypeApi.getAll(),
+        teamApi.getTeams()
+      ]);
+      setClients(cList || []);
+      setTaskTypes(tList || []);
+      setTeams(tmList || []);
+      if (!taskToEdit && tList && tList.length > 0 && !taskTypeId) {
         setTaskTypeId(tList[0]._id);
+      }
+      if (!taskToEdit && tmList && tmList.length > 0 && !teamId) {
+        setTeamId(initialTeamId || tmList[0]._id);
       }
     } catch (e) {
       console.error(e);
     }
   };
+
+  // Close modal on Escape key press
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Timer for voice recording
   useEffect(() => {
@@ -202,10 +276,14 @@ export default function TaskModal({
         status,
         priority,
         workspaceType,
+        teamId: workspaceType === 'Team' ? (teamId || null) : null,
         clientId: clientId || null,
         taskTypeId: taskTypeId || null,
         scheduledDate: new Date(scheduledDate).toISOString(),
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+        scheduledStartTime: scheduledStartTime || null,
+        scheduledEndTime: scheduledEndTime || null,
+        engageAI,
         localFileAttachments: localFiles
       };
 
@@ -230,8 +308,17 @@ export default function TaskModal({
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="modal-overlay">
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="modal-content" style={{ maxWidth: 580 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -290,11 +377,117 @@ export default function TaskModal({
                 onChange={(e) => setWorkspaceType(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem' }}
               >
-                <option value="Personal">{t.personal}</option>
-                <option value="Team">{t.team}</option>
+                <option value="Personal">👤 {t.personal}</option>
+                <option value="Team">👥 {t.team}</option>
               </select>
             </div>
           </div>
+
+          {/* Scheduled Time Slots (Start & End Time) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
+                <Clock size={14} style={{ display: 'inline', marginRight: 4 }} />
+                {lang === 'bn' ? 'শুরুর সময় (Start Time)' : 'Start Time'}
+              </label>
+              <input
+                type="time"
+                value={scheduledStartTime}
+                onChange={(e) => setScheduledStartTime(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
+                <Clock size={14} style={{ display: 'inline', marginRight: 4 }} />
+                {lang === 'bn' ? 'শেষের সময় (End Time)' : 'End Time'}
+              </label>
+              <input
+                type="time"
+                value={scheduledEndTime}
+                onChange={(e) => setScheduledEndTime(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem' }}
+              />
+            </div>
+          </div>
+
+          {/* Engage AI Assistant Toggle Card */}
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 12,
+              background: engageAI ? 'var(--primary-glow)' : 'var(--bg-input)',
+              border: engageAI ? '1px solid var(--primary)' : '1px solid var(--border-subtle)',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  background: engageAI ? 'var(--primary)' : 'var(--border-subtle)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Sparkles size={18} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                    {lang === 'bn' ? 'Engage AI (স্মার্ট টাইম ম্যানেজমেন্ট)' : 'Engage AI (Time Management & Alerts)'}
+                  </span>
+                  {engageAI && (
+                    <span style={{ fontSize: '0.65rem', background: 'var(--primary)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: '2px 0 0', lineHeight: 1.3 }}>
+                  {lang === 'bn'
+                    ? 'কাজ শুরু না হলে অ্যালার্ট, আটকে থাকলে রিমাইন্ডার এবং সাউন্ড নোটিফিকেশন পাঠাবে।'
+                    : 'AI monitors timeline, alerts if not started, and sounds alert when deadline nears.'}
+                </p>
+              </div>
+            </div>
+
+            <input
+              type="checkbox"
+              checked={engageAI}
+              onChange={(e) => setEngageAI(e.target.checked)}
+              style={{ width: 20, height: 20, cursor: 'pointer', accentColor: 'var(--primary)' }}
+            />
+          </div>
+
+          {/* Team Selection if Team Workspace is active */}
+          {workspaceType === 'Team' && teams.length > 0 && (
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
+                <Users size={14} style={{ display: 'inline', marginRight: 4 }} />
+                {t.teamLabel || 'Select Team'} *
+              </label>
+              <select
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem' }}
+                required
+              >
+                <option value="">{t.selectTeamPrompt || '-- Select Team --'}</option>
+                {teams.map(tm => (
+                  <option key={tm._id} value={tm._id}>{tm.name} ({tm.members?.length || 1} members)</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Brief Description */}
           <div>
@@ -344,19 +537,19 @@ export default function TaskModal({
             </div>
           </div>
 
-          {/* Category & Priority */}
+          {/* Task Type & Priority */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
                 <Tag size={14} style={{ display: 'inline', marginRight: 4 }} />
-                {t.categoryLabel}
+                {t.taskTypeLabel || t.categoryLabel || 'Task Type'}
               </label>
               <select
                 value={taskTypeId}
                 onChange={(e) => setTaskTypeId(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem' }}
               >
-                <option value="">{t.noCategoryOption}</option>
+                <option value="">{t.noTaskTypeOption || t.noCategoryOption || '-- General / None --'}</option>
                 {taskTypes.map(typeItem => (
                   <option key={typeItem._id} value={typeItem._id}>{typeItem.name}</option>
                 ))}

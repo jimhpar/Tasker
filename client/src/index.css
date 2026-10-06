@@ -1,18 +1,20 @@
 /* ==========================================================================
-   TASKER DESIGN SYSTEM - CSS VARIABLES & THEMES
+   TASKER DESIGN SYSTEM - MINIMALIST MONOCHROME (BLACK & WHITE)
    ========================================================================== */
 
 :root {
   --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-code: 'JetBrains Mono', monospace;
 
-  /* Global Brand Accents */
-  --primary: #6366f1;
-  --primary-hover: #4f46e5;
-  --primary-glow: rgba(99, 102, 241, 0.25);
-  
-  --secondary: #8b5cf6;
-  --accent: #06b6d4;
+  /* Global Minimalist Monochrome Palette */
+  --primary: #090a0f;
+  --primary-hover: #1f2937;
+  --primary-glow: rgba(0, 0, 0, 0.08);
+
+  --secondary: #334155;
+  --accent: #0f172a;
+
+  /* Functional Status Colors ONLY (Accept, Reject, Progress, Carry-forward) */
   --success: #10b981;
   --success-bg: rgba(16, 185, 129, 0.12);
   --warning: #f59e0b;
@@ -21,8 +23,8 @@
   --danger-bg: rgba(239, 68, 68, 0.12);
 
   --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
   --radius-full: 9999px;
 
   --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
@@ -30,75 +32,117 @@
 }
 
 /* ==========================================================================
-   THEME 1: DARK MODE (DEFAULT - SLEEK OBSIDIAN)
+   THEME 1: LIGHT MODE (DEFAULT - CRISP MINIMALIST BLACK & WHITE)
+   ========================================================================== */
+body.theme-light {
+  --bg-app: #f9fafb;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f3f4f6;
+  --bg-input: #f3f4f6;
+  --bg-dropdown: #ffffff;
+  --border-subtle: #e5e7eb;
+  --border-focus: #111827;
+
+  --text-main: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --secondary: #334155;
+  --accent: #0f172a;
+
+  --active-btn-bg: #090a0f;
+  --active-btn-text: #ffffff;
+  --active-btn-subtext: rgba(255, 255, 255, 0.75);
+  --active-btn-icon-bg: rgba(255, 255, 255, 0.2);
+
+  --badge-todo-bg: rgba(100, 116, 139, 0.12);
+  --badge-todo-color: #475569;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.08);
+  --glass-border: 1px solid #e5e7eb;
+  --header-bg: rgba(255, 255, 255, 0.96);
+
+  --primary: #090a0f;
+  --primary-hover: #1f2937;
+  --primary-glow: rgba(0, 0, 0, 0.08);
+}
+
+/* ==========================================================================
+   THEME 2: DARK MODE (OBSIDIAN MONOCHROME - HIGH CONTRAST)
    ========================================================================== */
 body.theme-dark {
   --bg-app: #090a0f;
-  --bg-surface: #12141c;
-  --bg-card: rgba(22, 25, 37, 0.7);
-  --bg-card-hover: rgba(30, 35, 50, 0.85);
+  --bg-surface: #11131a;
+  --bg-card: #161922;
+  --bg-card-hover: #1f2330;
   --bg-input: #0e1017;
-  --bg-dropdown: #151824;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-focus: rgba(99, 102, 241, 0.5);
+  --bg-dropdown: #161922;
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-focus: #f8fafc;
 
   --text-main: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --secondary: #cbd5e1;
+  --accent: #38bdf8;
+
+  --active-btn-bg: #f8fafc;
+  --active-btn-text: #090a0f;
+  --active-btn-subtext: rgba(9, 10, 15, 0.7);
+  --active-btn-icon-bg: rgba(9, 10, 15, 0.12);
+
+  --badge-todo-bg: rgba(255, 255, 255, 0.1);
+  --badge-todo-color: #cbd5e1;
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.65);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
-  --header-bg: rgba(14, 16, 25, 0.82);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.12);
+  --header-bg: rgba(14, 16, 25, 0.92);
+
+  --primary: #f8fafc;
+  --primary-hover: #e2e8f0;
+  --primary-glow: rgba(255, 255, 255, 0.15);
 }
 
 /* ==========================================================================
-   THEME 2: GRAY MODE (SLATE METALLIC)
+   THEME 3: GRAY MODE (SLATE MONOCHROME - HIGH CONTRAST)
    ========================================================================== */
 body.theme-gray {
-  --bg-app: #1e222b;
-  --bg-surface: #272d38;
-  --bg-card: rgba(45, 52, 65, 0.75);
-  --bg-card-hover: rgba(56, 65, 82, 0.9);
-  --bg-input: #1a1e26;
-  --bg-dropdown: #2d3441;
-  --border-subtle: rgba(255, 255, 255, 0.12);
-  --border-focus: rgba(99, 102, 241, 0.6);
+  --bg-app: #181b22;
+  --bg-surface: #222630;
+  --bg-card: #272c38;
+  --bg-card-hover: #313745;
+  --bg-input: #1b1e26;
+  --bg-dropdown: #272c38;
+  --border-subtle: rgba(255, 255, 255, 0.15);
+  --border-focus: #f1f5f9;
 
   --text-main: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
+  --text-secondary: #e2e8f0;
+  --text-muted: #cbd5e1;
+  --secondary: #e2e8f0;
+  --accent: #38bdf8;
+
+  --active-btn-bg: #f1f5f9;
+  --active-btn-text: #0f172a;
+  --active-btn-subtext: rgba(15, 23, 42, 0.7);
+  --active-btn-icon-bg: rgba(15, 23, 42, 0.12);
+
+  --badge-todo-bg: rgba(255, 255, 255, 0.12);
+  --badge-todo-color: #f1f5f9;
 
   --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.25);
   --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.12);
-  --header-bg: rgba(33, 38, 48, 0.88);
-}
+  --glass-border: 1px solid rgba(255, 255, 255, 0.15);
+  --header-bg: rgba(27, 30, 38, 0.92);
 
-/* ==========================================================================
-   THEME 3: LIGHT MODE (CRISP & CLEAN)
-   ========================================================================== */
-body.theme-light {
-  --bg-app: #f4f6fa;
-  --bg-surface: #ffffff;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f8faff;
-  --bg-input: #edf2f7;
-  --bg-dropdown: #ffffff;
-  --border-subtle: rgba(0, 0, 0, 0.08);
-  --border-focus: rgba(99, 102, 241, 0.5);
-
-  --text-main: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.12);
-  --glass-border: 1px solid rgba(0, 0, 0, 0.08);
-  --header-bg: rgba(255, 255, 255, 0.92);
+  --primary: #f1f5f9;
+  --primary-hover: #e2e8f0;
+  --primary-glow: rgba(255, 255, 255, 0.15);
 }
 
 /* ==========================================================================
@@ -137,12 +181,12 @@ input, textarea, select {
   background: var(--bg-input);
   color: var(--text-main);
   border-radius: var(--radius-sm);
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 input:focus, textarea:focus, select:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  box-shadow: 0 0 0 2px var(--border-subtle);
 }
 
 /* Custom Scrollbar */
@@ -188,33 +232,47 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* ==========================================================================
-   COMPONENTS & UTILITIES
+   BUTTONS (Sleek Minimalist Monochrome)
    ========================================================================== */
-
-/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 8px 16px;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   border-radius: var(--radius-md);
-  transition: transform var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+  transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn:active {
   transform: scale(0.98);
 }
+
+/* Primary Button: Solid Black in light mode, Solid White in dark mode */
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  background: var(--primary);
+  color: var(--bg-surface);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+body.theme-light .btn-primary {
+  background: #090a0f;
   color: #ffffff;
-  box-shadow: 0 4px 14px var(--primary-glow);
+}
+body.theme-dark .btn-primary {
+  background: #f8fafc;
+  color: #090a0f;
+}
+body.theme-gray .btn-primary {
+  background: #f1f5f9;
+  color: #181b22;
 }
 .btn-primary:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 6px 20px var(--primary-glow);
+  background: var(--primary-hover);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
 }
+
+/* Secondary Button: Clean bordered card */
 .btn-secondary {
   background: var(--bg-card);
   color: var(--text-main);
@@ -224,6 +282,7 @@ input:focus, textarea:focus, select:focus {
   background: var(--bg-card-hover);
   border-color: var(--border-focus);
 }
+
 .btn-ghost {
   color: var(--text-secondary);
 }
@@ -231,84 +290,125 @@ input:focus, textarea:focus, select:focus {
   background: var(--bg-card-hover);
   color: var(--text-main);
 }
+
+/* Functional Semantic Buttons */
 .btn-danger {
-  background: var(--danger-bg);
-  color: var(--danger);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-.btn-danger:hover {
   background: var(--danger);
   color: #ffffff;
+  border: none;
+}
+.btn-danger:hover {
+  filter: brightness(0.9);
 }
 
-/* Badges & Tags */
+.btn-success {
+  background: var(--success);
+  color: #ffffff;
+  border: none;
+}
+.btn-success:hover {
+  filter: brightness(0.9);
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: #ffffff;
+  border: none;
+}
+.btn-warning:hover {
+  filter: brightness(0.9);
+}
+
+/* ==========================================================================
+   BADGES & TAGS
+   ========================================================================== */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.72rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 .badge-todo {
-  background: rgba(99, 102, 241, 0.15);
-  color: #818cf8;
+  background: var(--badge-todo-bg);
+  color: var(--badge-todo-color);
 }
 .badge-progress {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 .badge-done {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+  background: var(--success-bg);
+  color: var(--success);
 }
 .badge-urgent {
-  background: rgba(239, 68, 68, 0.18);
-  color: #f87171;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
-/* Cards & Modals */
+/* ==========================================================================
+   CARDS & MODALS
+   ========================================================================== */
 .card {
   background: var(--bg-card);
-  border: var(--glass-border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 20px;
-  box-shadow: var(--shadow-md);
-  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 .card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: var(--border-focus);
 }
 
 /* Modal Overlay */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 16px;
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.15s ease-out;
 }
 
 .modal-content {
   background: var(--bg-surface);
-  border: var(--glass-border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 560px;
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
-  animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+}
+
+.modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 16px 0;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.35);
+  border-radius: 10px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.6);
 }
 
 @keyframes fadeIn {
@@ -317,7 +417,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 @keyframes scaleUp {
-  from { opacity: 0; transform: scale(0.95); }
+  from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: scale(1); }
 }
 

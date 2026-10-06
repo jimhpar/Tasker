@@ -9,7 +9,12 @@ router.use(authenticateToken);
 // Get all task types for user
 router.get('/', async (req, res) => {
   try {
-    const types = await TaskType.find({ userId: req.user.userId }).sort({ name: 1 });
+    const { workspaceType, teamId } = req.query;
+    const filter = { userId: req.user.userId };
+    if (workspaceType) filter.workspaceType = workspaceType;
+    if (teamId) filter.teamId = teamId;
+
+    const types = await TaskType.find(filter).sort({ name: 1 });
     res.json(types);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch task types' });
@@ -19,14 +24,16 @@ router.get('/', async (req, res) => {
 // Create task type
 router.post('/', async (req, res) => {
   try {
-    const { name, category, color } = req.body;
-    if (!name) return res.status(400).json({ error: 'Category name is required' });
+    const { name, category, color, workspaceType, teamId } = req.body;
+    if (!name) return res.status(400).json({ error: 'Task type name is required' });
 
     const newType = new TaskType({
       userId: req.user.userId,
       name: name.trim(),
       category: category || 'General',
-      color: color || '#6366F1'
+      workspaceType: workspaceType || 'Personal',
+      teamId: workspaceType === 'Team' ? (teamId || null) : null,
+      color: color || '#090A0F'
     });
 
     const saved = await newType.save();

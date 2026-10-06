@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,10 +11,11 @@ import {
   Calendar as CalendarIcon,
   Tag,
   Building,
-  ExternalLink
+  ExternalLink,
+  Edit3
 } from 'lucide-react';
 
-export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate }) {
+export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate, onEditTask }) {
   const { t, lang } = useLanguage();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -58,9 +60,26 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
   const selectedDateKey = formatDateKey(selectedDate);
   const todayKey = formatDateKey(new Date());
 
-  // Group tasks by date
+  const { user } = useAuth();
+  const myId = (user?._id || user?.id || '').toString().toLowerCase();
+  const myUsername = (user?.username || '').toLowerCase();
+
+  // Group tasks by date with personal ownership check
   const tasksByDate = {};
   tasks.forEach((taskItem) => {
+    if (taskItem.workspaceType === 'Personal') {
+      const ownerId = (taskItem.userId?._id || taskItem.userId || '').toString().toLowerCase();
+      const ownerName = (taskItem.createdBy || '').toLowerCase();
+      if (ownerId || ownerName) {
+        const isMine = (myId && ownerId === myId) ||
+                       (myUsername && ownerName === myUsername) ||
+                       (myUsername && ownerId === myUsername);
+        if (!isMine) return;
+      } else if (myUsername !== 'zim' && myUsername !== 'zim_founder') {
+        return;
+      }
+    }
+
     const key = formatDateKey(taskItem.scheduledDate || taskItem.createdAt);
     if (!tasksByDate[key]) tasksByDate[key] = [];
     tasksByDate[key].push(taskItem);
@@ -85,10 +104,51 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Calendar Header Controls */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.3px' }}>
-            {monthNames[month]} {year}
-          </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* Month Selector */}
+          <select
+            value={month}
+            onChange={(e) => setCurrentDate(new Date(year, parseInt(e.target.value, 10), 1))}
+            style={{
+              padding: '6px 12px',
+              fontSize: '1.05rem',
+              fontWeight: 800,
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-main)',
+              cursor: 'pointer'
+            }}
+          >
+            {monthNames.map((mName, idx) => (
+              <option key={idx} value={idx}>
+                {mName}
+              </option>
+            ))}
+          </select>
+
+          {/* Year Selector */}
+          <select
+            value={year}
+            onChange={(e) => setCurrentDate(new Date(parseInt(e.target.value, 10), month, 1))}
+            style={{
+              padding: '6px 12px',
+              fontSize: '1.05rem',
+              fontWeight: 800,
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-main)',
+              cursor: 'pointer'
+            }}
+          >
+            {Array.from({ length: 16 }, (_, i) => 2022 + i).map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+
           <button
             onClick={jumpToToday}
             className="btn btn-secondary"
@@ -99,10 +159,10 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={prevMonth} className="btn btn-secondary" style={{ padding: '8px 12px' }}>
+          <button onClick={prevMonth} className="btn btn-secondary" style={{ padding: '8px 12px' }} title="Previous Month">
             <ChevronLeft size={18} />
           </button>
-          <button onClick={nextMonth} className="btn btn-secondary" style={{ padding: '8px 12px' }}>
+          <button onClick={nextMonth} className="btn btn-secondary" style={{ padding: '8px 12px' }} title="Next Month">
             <ChevronRight size={18} />
           </button>
         </div>
@@ -182,7 +242,7 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
                       {dayNum}
                     </span>
                     {isToday && (
-                      <span style={{ fontSize: '0.65rem', background: 'var(--primary)', color: '#fff', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                      <span style={{ fontSize: '0.65rem', background: 'var(--primary)', color: 'var(--bg-app)', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
                         {t.todayBadge}
                       </span>
                     )}
@@ -262,7 +322,11 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
                       {isDone ? <CheckCircle2 size={20} /> : <Circle size={20} />}
                     </button>
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{ flex: 1, minWidth: 0, cursor: onEditTask ? 'pointer' : 'default' }}
+                      onClick={() => onEditTask && onEditTask(taskItem)}
+                      title="Click to view details & edit task"
+                    >
                       <div
                         style={{
                           fontWeight: 700,
@@ -298,6 +362,7 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
                             href={taskItem.sourceLink}
                             target="_blank"
                             rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             style={{ fontSize: '0.72rem', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 3, textDecoration: 'none' }}
                           >
                             <ExternalLink size={12} /> Link
@@ -311,6 +376,17 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
                         )}
                       </div>
                     </div>
+
+                    {/* Edit Task Button */}
+                    <button
+                      type="button"
+                      onClick={() => onEditTask && onEditTask(taskItem)}
+                      className="btn-ghost"
+                      style={{ padding: 6, borderRadius: 6, color: 'var(--text-muted)', flexShrink: 0 }}
+                      title="Edit task details, upload files, links"
+                    >
+                      <Edit3 size={15} />
+                    </button>
                   </div>
                 );
               })}

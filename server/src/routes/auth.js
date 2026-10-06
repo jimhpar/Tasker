@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
@@ -17,16 +18,66 @@ const DEFAULT_TASK_TYPES = [
   { name: 'সাধারণ কাজ (Daily General)', category: 'General', color: '#06B6D4' }
 ];
 
+// Check Username Availability & Provide Suggestions
+router.get('/check-username', async (req, res) => {
+  try {
+    const { username } = req.query;
+    if (!username) {
+      return res.status(400).json({ available: false, message: 'Username is required' });
+    }
+
+    const cleanUsername = username.trim().toLowerCase();
+    if (cleanUsername.length < 5) {
+      return res.json({
+        available: false,
+        reason: 'too_short',
+        message: 'Username must be at least 5 characters'
+      });
+    }
+
+    const existingUser = await User.findOne({ username: cleanUsername });
+    if (!existingUser) {
+      return res.json({ available: true, message: 'Username is available' });
+    }
+
+    // Generate smart alternative suggestions
+    const candidates = [
+      `${cleanUsername}${Math.floor(100 + Math.random() * 900)}`,
+      `${cleanUsername}_pro`,
+      `${cleanUsername}_dev`,
+      `${cleanUsername}_official`
+    ];
+
+    const existingCandidates = await User.find({ username: { $in: candidates } }).select('username');
+    const existingSet = new Set(existingCandidates.map(u => u.username));
+    const suggestions = candidates.filter(c => !existingSet.has(c)).slice(0, 3);
+
+    return res.json({
+      available: false,
+      reason: 'taken',
+      message: 'Username is already taken',
+      suggestions
+    });
+  } catch (err) {
+    console.error('Check username error:', err);
+    res.status(500).json({ available: false, message: 'Error checking username' });
+  }
+});
+
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, fullName } = req.body;
+    const { username, email, phone, password, fullName } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
     const cleanUsername = username.trim().toLowerCase();
+    if (cleanUsername.length < 5) {
+      return res.status(400).json({ error: 'Username must be at least 5 characters' });
+    }
+
     const existingUser = await User.findOne({ username: cleanUsername });
     if (existingUser) {
       return res.status(400).json({ error: 'Username is already taken' });
@@ -39,12 +90,18 @@ router.post('/register', async (req, res) => {
       }
     }
 
+    const totalUsers = await User.countDocuments();
+    const isFirstUserOrAdmin = totalUsers === 0 || cleanUsername === 'zim_founder' || cleanUsername === 'admin';
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new User({
       username: cleanUsername,
       email: email ? email.trim().toLowerCase() : '',
+      phone: phone ? phone.trim() : '',
+      role: isFirstUserOrAdmin ? 'admin' : 'user',
+      plan: 'free',
       password: hashedPassword,
       profile: {
         fullName: fullName || cleanUsername,
@@ -68,7 +125,7 @@ router.post('/register', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { userId: savedUser._id, username: savedUser.username },
+      { userId: savedUser._id, username: savedUser.username, role: savedUser.role },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -80,6 +137,9 @@ router.post('/register', async (req, res) => {
         id: savedUser._id,
         username: savedUser.username,
         email: savedUser.email,
+        phone: savedUser.phone,
+        role: savedUser.role,
+        plan: savedUser.plan,
         profile: savedUser.profile,
         settings: savedUser.settings
       }
@@ -113,8 +173,13 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid username or password' });
     }
 
+    if (user.username === 'zim_founder' && user.role !== 'admin') {
+      user.role = 'admin';
+      await user.save();
+    }
+
     const token = jwt.sign(
-      { userId: user._id, username: user.username },
+      { userId: user._id, username: user.username, role: user.role },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -126,6 +191,9 @@ router.post('/login', async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
+        phone: user.phone || '',
+        role: user.role || 'user',
+        plan: user.plan || 'free',
         profile: user.profile,
         settings: user.settings
       }
@@ -141,27 +209,60 @@ router.get('/me', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('-password');
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (user.username === 'zim_founder' && user.role !== 'admin') {
+      user.role = 'admin';
+      await user.save();
+    }
+
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Update Profile
+// Update Profile (with username, email, and phone update support)
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
-    const { fullName, bio, links, avatar } = req.body;
-    const user = await User.findById(req.user.userId);
+    const { fullName, username, email, phone, bio, links, avatar } = req.body;
+    let user = null;
+    if (mongoose.Types.ObjectId.isValid(req.user.userId)) {
+      user = await User.findById(req.user.userId);
+    }
+    if (!user) {
+      user = await User.findOne({ username: req.user.username });
+    }
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    if (username && username.trim().toLowerCase() !== user.username) {
+      const cleanUsername = username.trim().toLowerCase();
+      if (cleanUsername.length < 5) {
+        return res.status(400).json({ error: 'Username must be at least 5 characters' });
+      }
+      const checkTaken = await User.findOne({ username: cleanUsername, _id: { $ne: user._id } });
+      if (checkTaken) {
+        return res.status(400).json({ error: 'Username is already taken' });
+      }
+      user.username = cleanUsername;
+    }
+
+    if (email !== undefined) user.email = email.trim().toLowerCase();
+    if (phone !== undefined) user.phone = phone.trim();
     if (fullName !== undefined) user.profile.fullName = fullName;
     if (bio !== undefined) user.profile.bio = bio;
     if (links !== undefined) user.profile.links = links;
     if (avatar !== undefined) user.profile.avatar = avatar;
 
     await user.save();
-    res.json({ message: 'Profile updated', profile: user.profile });
+    res.json({
+      message: 'Profile updated',
+      profile: user.profile,
+      username: user.username,
+      email: user.email,
+      phone: user.phone
+    });
   } catch (err) {
+    console.error('Update profile error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });

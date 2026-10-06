@@ -1,142 +1,504 @@
 // Gemini AI BYOK Service (Bring Your Own Key)
 
 const GEMINI_KEY_STORAGE = 'tasker_gemini_api_key';
+const GEMINI_MODEL_STORAGE = 'tasker_gemini_active_model';
+const GEMINI_MODEL_LABEL_STORAGE = 'tasker_gemini_active_model_label';
 
-export const getGeminiKey = () => localStorage.getItem(GEMINI_KEY_STORAGE) || '';
-export const setGeminiKey = (key) => localStorage.setItem(GEMINI_KEY_STORAGE, key.trim());
-export const removeGeminiKey = () => localStorage.removeItem(GEMINI_KEY_STORAGE);
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+export const DEFAULT_GEMINI_MODEL_LABEL = '3.8 FLASH';
+
+export const getCurrentUser = () => {
+  try {
+    const raw = localStorage.getItem('tasker_auth_user') || localStorage.getItem('tasker_user');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+};
+
+export const getCurrentUserKey = () => {
+  const u = getCurrentUser();
+  if (u) {
+    return (u.username || u._id || u.id || '').trim().toLowerCase();
+  }
+  return '';
+};
+
+// Automatic sanitization: Ensure that Zim's key NEVER leaks to Sunny or any other account
+(function sanitizeUserGeminiKeys() {
+  try {
+    const legacy = localStorage.getItem(GEMINI_KEY_STORAGE);
+    if (legacy) {
+      localStorage.setItem('tasker_gemini_api_key_zim', legacy);
+      localStorage.removeItem(GEMINI_KEY_STORAGE);
+    }
+    localStorage.removeItem('tasker_gemini_api_key_');
+
+    const zimKey = localStorage.getItem('tasker_gemini_api_key_zim');
+    const u = getCurrentUser();
+    const uname = (u?.username || '').trim().toLowerCase();
+
+    // If current logged-in user is not Zim/admin and has Zim's key stored in their scoped slot, clear it!
+    if (zimKey && uname && uname !== 'zim' && uname !== 'zim_founder') {
+      if (localStorage.getItem(`tasker_gemini_api_key_${uname}`) === zimKey) {
+        localStorage.removeItem(`tasker_gemini_api_key_${uname}`);
+      }
+      if (u?._id && localStorage.getItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`) === zimKey) {
+        localStorage.removeItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`);
+      }
+    }
+  } catch {}
+})();
+
+export const getGeminiKey = (customUserKey = null) => {
+  const userKey = (customUserKey || getCurrentUserKey() || '').trim().toLowerCase();
+  if (!userKey) {
+    return '';
+  }
+
+  // Check username-scoped key first
+  const scoped = localStorage.getItem(`tasker_gemini_api_key_${userKey}`);
+  if (scoped) return scoped;
+
+  const u = getCurrentUser();
+  if (u?._id && u._id.toLowerCase() !== userKey) {
+    const idScoped = localStorage.getItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`);
+    if (idScoped) return idScoped;
+  }
+
+  // Only zim/zim_founder can use zim's key
+  if (userKey === 'zim' || userKey === 'zim_founder') {
+    return localStorage.getItem('tasker_gemini_api_key_zim') || '';
+  }
+
+  // Any other user (e.g. sunny, elias sunny) MUST have their own key connected
+  return '';
+};
+
+export const getActiveGeminiModel = () => localStorage.getItem(GEMINI_MODEL_STORAGE) || DEFAULT_GEMINI_MODEL;
+export const getActiveGeminiModelLabel = () => localStorage.getItem(GEMINI_MODEL_LABEL_STORAGE) || DEFAULT_GEMINI_MODEL_LABEL;
+
+export const setActiveGeminiModel = (model, label) => {
+  if (model) localStorage.setItem(GEMINI_MODEL_STORAGE, model);
+  if (label) localStorage.setItem(GEMINI_MODEL_LABEL_STORAGE, label);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tasker_gemini_model_updated', { detail: { model, label } }));
+  }
+};
+
+/**
+ * Automatically queries Google Gemini API /v1beta/models to discover available Flash models
+ * and selects the highest version (e.g. gemini-3.8-flash, or latest available).
+ */
+export async function fetchLatestGeminiModel(customKey = null) {
+  const apiKey = (customKey || getGeminiKey() || '').trim();
+  if (!apiKey) {
+    return {
+      model: getActiveGeminiModel(),
+      label: getActiveGeminiModelLabel()
+    };
+  }
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
+      signal: AbortSignal.timeout ? AbortSignal.timeout(3500) : undefined
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const models = Array.isArray(data.models) ? data.models : [];
+
+      // Filter models that support content generation and are Flash models
+      const flashModels = models.filter((m) => {
+        const name = (m.name || '').toLowerCase();
+        const displayName = (m.displayName || '').toLowerCase();
+        const supportsGen = Array.isArray(m.supportedGenerationMethods)
+          ? m.supportedGenerationMethods.includes('generateContent')
+          : true;
+        return supportsGen && (name.includes('flash') || displayName.includes('flash'));
+      });
+
+      if (flashModels.length > 0) {
+        const extractVersion = (m) => {
+          const str = `${m.name} ${m.displayName || ''}`;
+          const match = str.match(/gemini-(\d+(?:\.\d+)?)/i) || str.match(/(\d+(?:\.\d+)?)\s*flash/i);
+          return match ? parseFloat(match[1]) : 0;
+        };
+
+        // Sort descending by version number
+        flashModels.sort((a, b) => extractVersion(b) - extractVersion(a));
+
+        const best = flashModels[0];
+        const cleanName = best.name.replace(/^models\//, '');
+        const ver = extractVersion(best);
+        const label = ver > 0 ? `${ver} FLASH` : cleanName.toUpperCase().replace('GEMINI-', '');
+
+        setActiveGeminiModel(cleanName, label);
+        return { model: cleanName, label };
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch Gemini models list:', err);
+  }
+
+  return {
+    model: getActiveGeminiModel(),
+    label: getActiveGeminiModelLabel()
+  };
+}
+
+/**
+ * Fast dedicated API key validator with 3.5s timeout
+ */
+export async function verifyGeminiKey(key) {
+  const cleanKey = (key || '').trim();
+  if (!cleanKey) return { valid: false, message: 'API key cannot be empty' };
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`, {
+      signal: AbortSignal.timeout ? AbortSignal.timeout(3500) : undefined
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { valid: true, models: data.models || [] };
+    }
+    const errData = await res.json().catch(() => ({}));
+    return {
+      valid: false,
+      message: errData.error?.message || `Invalid API key (Status ${res.status})`
+    };
+  } catch (err) {
+    // If user has standard AIzaSy Google Key format, allow offline graceful fallback
+    if (cleanKey.startsWith('AIzaSy') && cleanKey.length >= 35) {
+      return { valid: true, models: [] };
+    }
+    return {
+      valid: false,
+      message: err.name === 'AbortError' ? 'Verification timed out. Check connection.' : err.message
+    };
+  }
+}
+
+export const setGeminiKey = (key, customUserKey = null) => {
+  const cleanKey = (key || '').trim();
+  const userKey = (customUserKey || getCurrentUserKey() || '').trim().toLowerCase();
+
+  if (userKey) {
+    if (cleanKey) {
+      localStorage.setItem(`tasker_gemini_api_key_${userKey}`, cleanKey);
+      const u = getCurrentUser();
+      if (u?._id && u._id.toLowerCase() !== userKey) {
+        localStorage.setItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`, cleanKey);
+      }
+    } else {
+      localStorage.removeItem(`tasker_gemini_api_key_${userKey}`);
+      const u = getCurrentUser();
+      if (u?._id) {
+        localStorage.removeItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`);
+      }
+    }
+  }
+  // Clear generic global key so it doesn't leak between users
+  localStorage.removeItem(GEMINI_KEY_STORAGE);
+  localStorage.removeItem('tasker_gemini_api_key_');
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tasker_gemini_key_updated', { detail: { key: cleanKey, userKey } }));
+  }
+  if (cleanKey) {
+    fetchLatestGeminiModel(cleanKey).catch(() => {});
+  }
+};
+
+export const removeGeminiKey = (customUserKey = null) => {
+  const userKey = (customUserKey || getCurrentUserKey() || '').trim().toLowerCase();
+  if (userKey) {
+    localStorage.removeItem(`tasker_gemini_api_key_${userKey}`);
+  }
+  const u = getCurrentUser();
+  if (u?._id) {
+    localStorage.removeItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`);
+  }
+  localStorage.removeItem(GEMINI_KEY_STORAGE);
+  localStorage.removeItem('tasker_gemini_api_key_');
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tasker_gemini_key_updated', { detail: { key: '', userKey } }));
+  }
+};
 
 /**
  * Ask Gemini to reason about tasks, code, or schedule.
+ * Accepts either { prompt, codeSnippet, ... } or a string prompt.
  * Returns { textResponse, extractedTasks: [...] }
  */
-export async function queryGeminiReasoning({ prompt, codeSnippet = '', voiceTranscript = '', systemInstruction = '' }) {
-  const apiKey = getGeminiKey();
+export async function queryGeminiReasoning(input, extraContext = null) {
+  let prompt = '';
+  let codeSnippet = '';
+  let voiceTranscript = '';
+  let systemInstruction = '';
 
-  const combinedContent = `
-You are the Tasker Intelligent Productivity Assistant. You help users (ranging from farmers, store owners, freelancers, to software engineers and tech executives) organize their daily schedule, break down complex tasks, analyze code, and prioritize their workflow.
+  if (typeof input === 'string') {
+    prompt = input;
+  } else if (input && typeof input === 'object') {
+    prompt = input.prompt || '';
+    codeSnippet = input.codeSnippet || '';
+    voiceTranscript = input.voiceTranscript || '';
+    systemInstruction = input.systemInstruction || '';
+  }
+
+  const apiKey = getGeminiKey();
+  const rawInput = [prompt, voiceTranscript, codeSnippet].filter(Boolean).join('\n');
+
+  if (!apiKey) {
+    return generateSimulatedResponse(rawInput);
+  }
+
+  const promptContent = `
+You are the Tasker Intelligent Productivity Assistant. You help users (ranging from farmers, store owners, freelancers, to software engineers and tech executives) organize their workflow, analyze requests, and decompose goals into high-impact actionable tasks.
 
 User input details:
 ${voiceTranscript ? `[Voice Recording Transcript]: ${voiceTranscript}\n` : ''}
 ${prompt ? `[User Prompt / Instructions]: ${prompt}\n` : ''}
 ${codeSnippet ? `[Code Snippet to Analyze]:\n\`\`\`\n${codeSnippet}\n\`\`\`\n` : ''}
 
-CRITICAL INSTRUCTIONS:
-1. Provide a clear, friendly, and empowering response in the same language as the user (Bangla or English).
-2. If tasks can be derived from the user's input, extract them into structured JSON format enclosed in a JSON codeblock:
+CRITICAL REASONING INSTRUCTIONS:
+1. If the user asks a conversational question or asks for advice, answer politely, concisely, and helpfully in a conversational manner.
+2. If the user mentions tasks, actions, or daily goals, decompose the user's goal into distinct, actionable, professional tasks.
+3. For each task determine:
+   - "title": Clean, concise action-oriented title.
+   - "brief": Detailed instructions, sub-steps, or key deliverables.
+   - "priority": "Urgent" | "High" | "Medium" | "Low".
+   - "suggestedCategory": "Tech" | "Agriculture" | "Retail" | "Design" | "General".
+4. If actionable tasks are identified, enclose them in a JSON block formatted exactly as:
 \`\`\`json
 {
   "tasks": [
     {
-      "title": "Short clear task name (e.g. কালকে সকালের দুধ ডেলিভারি or Fix React auth hook)",
-      "brief": "Context or instructions",
-      "priority": "High" | "Medium" | "Low" | "Urgent",
-      "suggestedCategory": "Agriculture" | "Retail" | "Tech" | "Design" | "General"
+      "title": "Clear action title",
+      "brief": "Context and action steps",
+      "priority": "High",
+      "suggestedCategory": "General"
     }
   ]
 }
 \`\`\`
-3. Always explain why you structured the schedule this way.
+5. If no specific tasks need creation (e.g. user just said hello or asked a general question), reply warmly and do not force a JSON block.
+Respond in the user's language (Bangla if user spoke/wrote in Bangla, otherwise English).
 `;
 
-  if (!apiKey) {
-    // Provide a smart local simulated fallback so user can experience the feature before setting key
-    return generateSimulatedResponse(prompt || voiceTranscript || codeSnippet);
-  }
+  // Try dynamic active model first, fall back gracefully across flash tiers
+  const activeModel = getActiveGeminiModel();
+  const models = Array.from(new Set([
+    activeModel,
+    'gemini-3.8-flash',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash'
+  ]));
+  let lastError = null;
 
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const payload = {
-      contents: [
-        {
-          parts: [{ text: combinedContent }]
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [
+          {
+            parts: [{ text: promptContent }]
+          }
+        ]
+      };
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Gemini API returned status ${res.status}`);
+      }
+
+      const data = await res.json();
+      const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      if (candidate) {
+        // If this model worked and is different from current storage, remember it
+        if (model !== activeModel) {
+          const match = model.match(/gemini-(\d+(?:\.\d+)?)/i);
+          const ver = match ? match[1] : '';
+          const label = ver ? `${ver} FLASH` : 'FLASH';
+          setActiveGeminiModel(model, label);
         }
-      ]
-    };
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+        const extractedTasks = parseTasksFromResponse(candidate, rawInput);
+        const textResponse = candidate.replace(/```json[\s\S]*?```/g, '').replace(/```[\s\S]*?```/g, (match) => {
+          return match.includes('"tasks"') ? '' : match;
+        }).trim();
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Gemini API returned status ${res.status}`);
+        return {
+          textResponse: textResponse || candidate,
+          extractedTasks
+        };
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`Model ${model} failed, trying next:`, err.message);
     }
-
-    const data = await res.json();
-    const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text || 'কোনো রেসপন্স পাওয়া যায়নি।';
-
-    // Parse extracted JSON tasks
-    const extractedTasks = parseTasksFromResponse(candidate);
-
-    return {
-      textResponse: candidate.replace(/```json[\s\S]*?```/g, '').trim(),
-      extractedTasks
-    };
-  } catch (err) {
-    console.warn('Gemini API call failed, falling back to smart local reasoning:', err.message);
-    return {
-      textResponse: `⚠️ Gemini API Error (${err.message})। আপনার API Key চেক করুন। নিচে একটি টেস্ট প্রিভিউ দেখানো হলো:`,
-      ...generateSimulatedResponse(prompt || voiceTranscript)
-    };
   }
+
+  console.warn('All Gemini API calls failed, falling back to smart local reasoning:', lastError?.message);
+  return {
+    textResponse: `⚠️ Gemini API (${lastError?.message || 'Check API key'}). Local Assistant:`,
+    ...generateSimulatedResponse(rawInput)
+  };
 }
 
-function parseTasksFromResponse(text) {
+/**
+ * Flexible JSON task parser supporting multiple formatting styles from LLMs
+ */
+function parseTasksFromResponse(text, fallbackInput = '') {
   try {
-    const jsonMatch = text.match(/```json([\s\S]*?)```/);
+    // 1. Check for ```json ... ``` codeblock
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (jsonMatch && jsonMatch[1]) {
-      const parsed = JSON.parse(jsonMatch[1].trim());
-      if (Array.isArray(parsed.tasks)) {
-        return parsed.tasks;
+      const candidateStr = jsonMatch[1].trim();
+      if (candidateStr.startsWith('{') || candidateStr.startsWith('[')) {
+        const parsed = JSON.parse(candidateStr);
+        if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) return sanitizeTasks(parsed.tasks);
+        if (Array.isArray(parsed) && parsed.length > 0) return sanitizeTasks(parsed);
+      }
+    }
+
+    // 2. Direct regex search for JSON object with "tasks"
+    const rawObjectMatch = text.match(/\{[\s\S]*"tasks"[\s\S]*\}/);
+    if (rawObjectMatch) {
+      const parsed = JSON.parse(rawObjectMatch[0]);
+      if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
+        return sanitizeTasks(parsed.tasks);
       }
     }
   } catch (e) {
     console.warn('Could not parse JSON tasks from Gemini response:', e);
   }
-  return [];
+
+  // If LLM returned text but no JSON, smartly decompose the text
+  return decomposeInputIntoTasks(fallbackInput || text);
 }
 
+function sanitizeTasks(tasks) {
+  return tasks.map(t => ({
+    title: String(t.title || 'Untitled Action').trim(),
+    brief: String(t.brief || t.description || 'AI Decomposed Workflow Step').trim(),
+    priority: ['Urgent', 'High', 'Medium', 'Low'].includes(t.priority) ? t.priority : 'Medium',
+    suggestedCategory: ['Tech', 'Agriculture', 'Retail', 'Design', 'General'].includes(t.suggestedCategory) ? t.suggestedCategory : 'General'
+  }));
+}
+
+/**
+ * Intelligent Decomposer when BYOK is not set or network fails.
+ * Parses user intents, verbs, timeframes, and decomposes multiple clauses.
+ */
 function generateSimulatedResponse(input) {
   const isBangla = /[\u0980-\u09FF]/.test(input);
+  const tasks = decomposeInputIntoTasks(input);
 
   if (isBangla) {
     return {
-      textResponse: `আমি আপনার কাজটি বুঝতে পেরেছি এবং আপনার সারাদিনের কাজের তালিকা অনুযায়ী সাজিয়ে দিয়েছি।\n\n📌 **পরিকল্পনা সারসংক্ষেপ:**\n১. জরুরি কাজগুলো সকালের দিকে রাখা হয়েছে।\n২. ক্লায়েন্ট বা বাজার সংক্রান্ত কাজগুলো নির্দিষ্ট সময়ে শিডিউল করা হয়েছে।\n\nনিচের "Add to Kanban & Calendar" বাটনে ক্লিক করে কাজগুলো সরাসরি বোর্ডে যুক্ত করে নিন!`,
-      extractedTasks: [
-        {
-          title: input ? input.slice(0, 40) : 'খামার ও সাপ্লাই তদারকি',
-          brief: 'Gemini AI দ্বারা স্বয়ংক্রিয়ভাবে জেনারেট করা টাস্ক',
-          priority: 'High',
-          suggestedCategory: 'Agriculture'
-        },
-        {
-          title: 'কাস্টমার পেমেন্ট ও ইনভয়েস আপডেট',
-          brief: 'বকেয়া টাকা সংগ্রহ এবং রসিদ যাচাই',
-          priority: 'Medium',
-          suggestedCategory: 'Retail'
-        }
-      ]
+      textResponse: `🔍 **টাস্ক অ্যানালাইসিস ও কর্মপরিকল্পনা সম্পন্ন:**\n\nআপনার প্রম্পট বিশ্লেষণ করে লক্ষ্যগুলো শনাক্ত করা হয়েছে এবং সেগুলোকে সুনির্দিষ্ট কর্মপরিকল্পনায় ভাগ করা হয়েছে।\n\n📌 **কাজের রূপরেখা:**\n${tasks.map((t, idx) => `• **ধাপ ${idx + 1}:** ${t.title} (${t.priority} প্রায়োরিটি, ক্যাটাগরি: ${t.suggestedCategory})`).join('\n')}\n\nনিচের **"Add to Kanban & Calendar"** বাটনে ক্লিক করে কাজগুলো সরাসরি যুক্ত করুন।`,
+      extractedTasks: tasks
     };
   }
 
   return {
-    textResponse: `I analyzed your daily workflow request! Here is an optimized plan to achieve maximum focus today:\n\n• High priority tasks are grouped for your peak productivity window.\n• Follow-ups and client communications are arranged neatly.\n\nClick the button below to add these directly to your Kanban Board and Calendar!`,
-    extractedTasks: [
-      {
-        title: input ? input.slice(0, 45) : 'Core Feature Implementation',
-        brief: 'Derived from AI reasoning breakdown',
-        priority: 'High',
-        suggestedCategory: 'Tech'
-      },
-      {
-        title: 'Review team pull requests & client sync',
-        brief: 'Code review and alignment meeting',
-        priority: 'Medium',
-        suggestedCategory: 'Tech'
-      }
-    ]
+    textResponse: `🔍 **Workflow Analysis & Task Decomposition Complete:**\n\nI analyzed your input and broke down your objectives into distinct, actionable milestones:\n\n${tasks.map((t, idx) => `• **Step ${idx + 1}:** ${t.title} [Priority: ${t.priority} | Category: ${t.suggestedCategory}]`).join('\n')}\n\nReview the decomposed items below and click **"Add to Kanban & Calendar"** to schedule them on your board!`,
+    extractedTasks: tasks
   };
+}
+
+/**
+ * Intelligent Heuristic Decomposition Engine
+ * Breaks multi-clause prompts into clean action titles without echoing raw text.
+ */
+function decomposeInputIntoTasks(text) {
+  if (!text || !text.trim()) {
+    return [
+      {
+        title: 'Review Daily Workflow',
+        brief: 'Check priorities and set targets for the day',
+        priority: 'High',
+        suggestedCategory: 'General'
+      }
+    ];
+  }
+
+  const isBangla = /[\u0980-\u09FF]/.test(text);
+
+  // Split input by conjunctions, periods, newlines, and commas
+  const delimiters = isBangla
+    ? /(?:\n+|।|\band\b|এবং|আর|ও|তারপর|এরপর|সেসাথে|,)/gi
+    : /(?:\n+|\.|\band then\b|\band\b|\bthen\b|\balso\b|\bafter that\b|,)/gi;
+
+  const rawChunks = text
+    .split(delimiters)
+    .map(c => c.trim())
+    .filter(c => c.length > 2);
+
+  const cleanPrefixes = isBangla
+    ? /^(আমি চাই|আমার|আমাদের|আমাকে|করতে হবে|প্লিজ|দয়া করে|কালকে|আজকে|সকালে|বিকালে|দুপুরে|যেভাবে|একটু)\s*/gi
+    : /^(i need to|i want to|please|can you|tomorrow|today|in the morning|in the evening|make sure to|we should)\s*/gi;
+
+  const tasks = [];
+
+  const chunksToProcess = rawChunks.length > 0 ? rawChunks.slice(0, 4) : [text];
+
+  for (const chunk of chunksToProcess) {
+    let clean = chunk.replace(cleanPrefixes, '').trim();
+    if (!clean) continue;
+
+    // Detect Category
+    let category = 'General';
+    const lower = chunk.toLowerCase();
+
+    if (/(খামার|গরু|ধান|ফসল|সার|কীটনাশক|দুধ|মাছ|কৃষি|হাঁস|মুরগি|farm|agri|crop|cattle|fertilizer|harvest)/i.test(lower)) {
+      category = 'Agriculture';
+    } else if (/(দোকান|বিক্রি|কাস্টমার|ইনভয়েস|টাকা|হিসাব|বকেয়া|খাতা|স্টক|retail|store|inventory|invoice|customer|sale|payment)/i.test(lower)) {
+      category = 'Retail';
+    } else if (/(code|bug|api|react|backend|frontend|server|database|git|pull request|deploy|fix|test|ui|ux|figma|review)/i.test(lower)) {
+      category = 'Tech';
+    } else if (/(ডিজাইন|design|logo|banner|ui|illustration|poster|mockup)/i.test(lower)) {
+      category = 'Design';
+    }
+
+    // Detect Priority
+    let priority = 'Medium';
+    if (/(জরুরি|অবিলম্বে|urgent|immediately|asap|critical|জরুরী|today|এখনই)/i.test(lower)) {
+      priority = 'Urgent';
+    } else if (/(important|priority|সকালে|প্রথমেই|high|মূল)/i.test(lower)) {
+      priority = 'High';
+    }
+
+    // Capitalize / polish title
+    let title = clean.charAt(0).toUpperCase() + clean.slice(1);
+    if (title.length > 60) {
+      title = title.slice(0, 57) + '...';
+    }
+
+    tasks.push({
+      title,
+      brief: isBangla ? `বিশ্লেষণকৃত সাব-টাস্ক: ${clean}` : `Actionable step: ${clean}`,
+      priority,
+      suggestedCategory: category
+    });
+  }
+
+  if (tasks.length === 0) {
+    tasks.push({
+      title: isBangla ? 'কাজের শিডিউল বাস্তবায়ন' : 'Execute Planned Workflow',
+      brief: text.slice(0, 80),
+      priority: 'High',
+      suggestedCategory: 'General'
+    });
+  }
+
+  return tasks;
 }

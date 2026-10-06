@@ -1,29 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { getGeminiKey, setGeminiKey, queryGeminiReasoning } from '../services/gemini';
 import {
+  CURRENT_VERSION,
+  PUBLISHER_NAME,
+  checkForUpdates,
+  getGitHubRepo,
+  setGitHubRepo
+} from '../services/updateChecker';
+import {
   X,
-  User,
   Sliders,
   Folder,
-  Sun,
-  Moon,
   Sparkles,
   CheckCircle,
   Key,
-  Laptop,
-  Languages
+  Languages,
+  Trash2,
+  Edit2,
+  ExternalLink,
+  RefreshCw,
+  Power,
+  ShieldCheck,
+  Download
 } from 'lucide-react';
 
 export default function SettingsModal({ onClose }) {
-  const { user, theme, setTheme, updateProfile, updateSettings } = useAuth();
+  const { user, updateProfile, updateSettings } = useAuth();
   const { lang, setLanguage, t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState('general'); // 'general' | 'profile' | 'ai'
 
   // Profile fields
   const [fullName, setFullName] = useState(user?.profile?.fullName || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(user?.phone || '');
   const [bio, setBio] = useState(user?.profile?.bio || '');
   const [linksText, setLinksText] = useState((user?.profile?.links || []).join(', '));
   const [avatar, setAvatar] = useState(user?.profile?.avatar || '');
@@ -32,13 +44,82 @@ export default function SettingsModal({ onClose }) {
   const [newUsername, setNewUsername] = useState(user?.username || '');
   const [newPassword, setNewPassword] = useState('');
   const [localDir, setLocalDir] = useState(user?.settings?.localAttachmentDir || 'C:/TaskerFiles');
+  const [autostart, setAutostart] = useState(true);
 
   // Gemini Key
   const [geminiKey, setGeminiKeyState] = useState(getGeminiKey());
+  const [isEditingKey, setIsEditingKey] = useState(!getGeminiKey());
   const [geminiStatus, setGeminiStatus] = useState('');
+
+  // Update Checker
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateResult, setUpdateResult] = useState(null);
+  const [repoInput, setRepoInput] = useState(getGitHubRepo());
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setFullName(user.profile?.fullName || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
+      setBio(user.profile?.bio || '');
+      setLinksText((user.profile?.links || []).join(', '));
+      setAvatar(user.profile?.avatar || '');
+      setNewUsername(user.username || '');
+    }
+  }, [user]);
+
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (window.electronAPI?.getAutostart) {
+      window.electronAPI.getAutostart().then((val) => {
+        if (typeof val === 'boolean') setAutostart(val);
+      }).catch(() => {});
+    }
+  }, []);
+
+  const handleOpenExternal = (url) => {
+    if (window.electronAPI?.openExternal) {
+      window.electronAPI.openExternal(url);
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleToggleAutostart = async (checked) => {
+    setAutostart(checked);
+    if (window.electronAPI?.setAutostart) {
+      await window.electronAPI.setAutostart(checked);
+    }
+  };
+
+  const handleManualCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateResult(null);
+    try {
+      if (repoInput.trim()) {
+        setGitHubRepo(repoInput.trim());
+      }
+      const res = await checkForUpdates(true);
+      setUpdateResult(res);
+    } catch (e) {
+      setUpdateResult({ hasUpdate: false, error: e.message });
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -46,14 +127,21 @@ export default function SettingsModal({ onClose }) {
     setSuccessMsg('');
     try {
       const links = linksText.split(',').map(s => s.trim()).filter(Boolean);
-      await updateProfile({ fullName, bio, links, avatar });
-      setSuccessMsg(t.profileUpdatedSuccess);
-      // Automatically dismiss popup after saving
+      await updateProfile({
+        fullName,
+        username: newUsername.trim().toLowerCase(),
+        email: email.trim(),
+        phone: phone.trim(),
+        bio,
+        links,
+        avatar
+      });
+      setSuccessMsg(t.profileUpdatedSuccess || 'Profile updated successfully!');
       setTimeout(() => {
         onClose();
       }, 700);
     } catch {
-      setSuccessMsg(t.profileUpdatedSuccess);
+      setSuccessMsg(t.profileUpdatedSuccess || 'Profile updated successfully!');
       setTimeout(() => {
         onClose();
       }, 700);
@@ -67,8 +155,10 @@ export default function SettingsModal({ onClose }) {
     setSaving(true);
     setSuccessMsg('');
     try {
+      if (repoInput.trim()) {
+        setGitHubRepo(repoInput.trim());
+      }
       const updates = {
-        theme,
         localAttachmentDir: localDir
       };
       if (newUsername.trim() && newUsername.trim() !== user?.username) {
@@ -79,7 +169,6 @@ export default function SettingsModal({ onClose }) {
       }
       await updateSettings(updates);
       setSuccessMsg(t.savedSuccess);
-      // Automatically dismiss popup after saving
       setTimeout(() => {
         onClose();
       }, 700);
@@ -94,20 +183,40 @@ export default function SettingsModal({ onClose }) {
   };
 
   const handleSaveGeminiKey = async () => {
-    setGeminiKey(geminiKey);
+    const trimmed = geminiKey.trim();
+    if (!trimmed) {
+      handleDeleteGeminiKey();
+      return;
+    }
+    setGeminiKey(trimmed);
     setGeminiStatus(lang === 'bn' ? 'ভেরিফাই করা হচ্ছে...' : 'Verifying...');
     try {
       const res = await queryGeminiReasoning({ prompt: 'Ping test' });
       if (res) {
         setGeminiStatus(lang === 'bn' ? '✅ Gemini API Key সক্রিয় ও কার্যক্ষম!' : '✅ Gemini API Key active & verified!');
+        setIsEditingKey(false);
       }
     } catch (err) {
       setGeminiStatus(`⚠️ ${err.message}`);
     }
   };
 
+  const handleDeleteGeminiKey = () => {
+    setGeminiKey('');
+    setGeminiKeyState('');
+    setIsEditingKey(true);
+    setGeminiStatus(lang === 'bn' ? 'API Key মুছে ফেলা হয়েছে।' : 'API Key removed.');
+  };
+
   return (
-    <div className="modal-overlay">
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="modal-content" style={{ maxWidth: 640 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -132,7 +241,7 @@ export default function SettingsModal({ onClose }) {
               borderBottom: activeTab === 'general' ? '2px solid var(--primary)' : '2px solid transparent'
             }}
           >
-            {t.generalThemeTab}
+            {lang === 'bn' ? 'সাধারণ সেটিংস' : 'General'}
           </button>
           <button
             onClick={() => { setActiveTab('profile'); setSuccessMsg(''); }}
@@ -192,44 +301,31 @@ export default function SettingsModal({ onClose }) {
                     className={`btn ${lang === 'en' ? 'btn-primary' : 'btn-secondary'}`}
                     style={{ flex: 1, padding: '9px 14px', fontSize: '0.88rem' }}
                   >
-                    🇺🇸 English
+                    🇬🇧 English
                   </button>
                 </div>
               </div>
 
-              {/* Theme Selector */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 10, color: 'var(--text-secondary)' }}>
-                  {t.themeLabel}
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                  {[
-                    { key: 'Dark', label: t.darkTheme, icon: Moon, desc: lang === 'bn' ? 'ডার্ক অ্যানেক্স' : 'Deep Obsidian' },
-                    { key: 'Gray', label: t.grayTheme, icon: Laptop, desc: lang === 'bn' ? 'সফট মেটালিক' : 'Slate Metallic' },
-                    { key: 'Light', label: t.lightTheme, icon: Sun, desc: lang === 'bn' ? 'উজ্জ্বল ক্লিন' : 'Clean & Bright' }
-                  ].map((item) => {
-                    const Icon = item.icon;
-                    const isSelected = theme === item.key;
-                    return (
-                      <div
-                        key={item.key}
-                        onClick={() => setTheme(item.key)}
-                        style={{
-                          border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-subtle)',
-                          borderRadius: 12,
-                          padding: '14px 12px',
-                          cursor: 'pointer',
-                          background: isSelected ? 'var(--primary-glow)' : 'var(--bg-input)',
-                          textAlign: 'center',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        <Icon size={22} color={isSelected ? 'var(--primary)' : 'var(--text-secondary)'} style={{ margin: '0 auto 6px' }} />
-                        <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{item.label}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.desc}</div>
-                      </div>
-                    );
-                  })}
+              {/* Windows Startup Boot Option */}
+              <div style={{ padding: 14, background: 'var(--bg-input)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Power size={18} color="var(--primary)" />
+                    <div>
+                      <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0 }}>
+                        {lang === 'bn' ? 'উইন্ডোজ স্টার্টআপে স্বয়ংক্রিয়ভাবে চালু করুন' : 'Start Tasker with System Boot'}
+                      </p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                        {lang === 'bn' ? 'উইন্ডোজ অন হওয়ার সাথে সাথে টাস্কার ব্যাকগ্রাউন্ডে রেডি থাকবে' : 'Launch Tasker automatically when your computer starts'}
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={autostart}
+                    onChange={(e) => handleToggleAutostart(e.target.checked)}
+                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--primary)' }}
+                  />
                 </div>
               </div>
 
@@ -252,7 +348,7 @@ export default function SettingsModal({ onClose }) {
                   <button
                     type="button"
                     onClick={() => {
-                      setLocalDir('D:/Workstation/TaskerFiles');
+                      setLocalDir('C:/TaskerFiles');
                     }}
                     className="btn btn-secondary"
                     style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}
@@ -260,6 +356,60 @@ export default function SettingsModal({ onClose }) {
                     <Folder size={16} /> {t.browseBtn}
                   </button>
                 </div>
+              </div>
+
+              {/* Software Version & Updates */}
+              <div style={{ padding: 14, background: 'var(--bg-input)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0 }}>
+                      Tasker v{CURRENT_VERSION}
+                    </h4>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                      Publisher: <strong>{PUBLISHER_NAME}</strong> • Checks weekly for updates
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleManualCheckUpdate}
+                    disabled={checkingUpdate}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.78rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <RefreshCw size={13} className={checkingUpdate ? 'spin' : ''} />
+                    <span>{checkingUpdate ? (lang === 'bn' ? 'চেক হচ্ছে...' : 'Checking...') : (lang === 'bn' ? 'আপডেট চেক করুন' : 'Check for Updates')}</span>
+                  </button>
+                </div>
+
+                {updateResult && (
+                  <div style={{ marginTop: 8, padding: 10, borderRadius: 8, background: updateResult.hasUpdate ? 'rgba(34, 197, 94, 0.1)' : 'var(--bg-card)', border: updateResult.hasUpdate ? '1px solid var(--success)' : '1px solid var(--border-subtle)' }}>
+                    {updateResult.hasUpdate ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div>
+                          <p style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--success)', margin: 0 }}>
+                            🚀 {updateResult.releaseName} {lang === 'bn' ? 'পাওয়া গেছে!' : 'is available!'}
+                          </p>
+                          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
+                            {updateResult.releaseNotes?.slice(0, 70)}...
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenExternal(updateResult.releaseUrl)}
+                          className="btn btn-primary"
+                          style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <Download size={13} />
+                          <span>{lang === 'bn' ? 'ডাউনলোড করুন' : 'Download'}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                        {updateResult.error ? `⚠️ ${updateResult.error}` : (lang === 'bn' ? '✅ আপনি Tasker-এর সর্বশেষ সংস্করণ (v2.1.0) ব্যবহার করছেন।' : '✅ Tasker is up to date (v2.1.0).')}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Account Credentials */}
@@ -309,9 +459,51 @@ export default function SettingsModal({ onClose }) {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Zim Chowdhury"
+                  placeholder="e.g. Oliver Smith"
                   style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem' }}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  placeholder="e.g. oliver_dev"
+                  style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem' }}
+                  required
+                />
+              </div>
+
+              {/* Email and Phone Number Fields */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
+                    {lang === 'bn' ? 'ইমেইল অ্যাড্রেস' : 'Email Address'}
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
+                    {lang === 'bn' ? 'মোবাইল / ফোন নম্বর' : 'Phone Number'}
+                  </label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+880 1700 000000"
+                    style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem' }}
+                  />
+                </div>
               </div>
 
               <div>
@@ -371,39 +563,130 @@ export default function SettingsModal({ onClose }) {
                   <Sparkles size={20} color="var(--primary)" />
                   <h4 style={{ fontWeight: 700, fontSize: '0.95rem' }}>Google Gemini AI (BYOK)</h4>
                 </div>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 14 }}>
                   {lang === 'bn'
                     ? 'আপনার নিজস্ব Gemini API Key ব্যবহার করে আপনি ভয়েস বা টেক্সট দিয়ে সারাদিনের শিডিউল ও টাস্ক সাজাতে পারবেন। কী-টি সম্পূর্ণ এনক্রিপ্ট হয়ে আপনার ডিভাইসে থাকবে।'
                     : 'Use your own Gemini API Key to process voice/text scheduling and task management. Stored securely on your device.'}
                 </p>
+
+                {/* External Link button that opens in user's default browser */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenExternal('https://aistudio.google.com/app/apikey')}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: '0.82rem',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '8px 14px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  title="Opens in your default browser"
+                >
+                  <Key size={15} color="var(--primary)" />
+                  <span>{lang === 'bn' ? 'Google AI Studio থেকে ফ্রি API Key নিন' : 'Get Free Gemini API Key (Google AI Studio)'}</span>
+                  <ExternalLink size={14} color="var(--text-muted)" />
+                </button>
               </div>
 
+              {/* Gemini API Key Display / Edit / Delete */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>
                   Gemini API Key
                 </label>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ position: 'relative', flex: 1 }}>
-                    <input
-                      type="password"
-                      value={geminiKey}
-                      onChange={(e) => setGeminiKeyState(e.target.value)}
-                      placeholder="AIzaSy..."
-                      style={{ width: '100%', padding: '10px 14px 10px 36px', fontSize: '0.9rem', fontFamily: 'var(--font-code)' }}
-                    />
-                    <Key size={16} color="var(--text-muted)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSaveGeminiKey}
-                    className="btn btn-primary"
-                    style={{ whiteSpace: 'nowrap' }}
+
+                {geminiKey && !isEditingKey ? (
+                  // Saved Key Card with Edit & Delete Options
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 16px',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 10
+                    }}
                   >
-                    {lang === 'bn' ? 'সেভ ও টেস্ট' : 'Save & Test'}
-                  </button>
-                </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <ShieldCheck size={18} color="var(--success)" />
+                      <div>
+                        <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, fontFamily: 'var(--font-code)' }}>
+                          AIzaSy••••••••••••{geminiKey.slice(-4)}
+                        </p>
+                        <p style={{ fontSize: '0.72rem', color: 'var(--success)', margin: 0 }}>
+                          {lang === 'bn' ? 'কী সেভ করা আছে' : 'API Key is saved & active'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingKey(true)}
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                        title="Edit API Key"
+                      >
+                        <Edit2 size={13} />
+                        <span>{lang === 'bn' ? 'এডিট' : 'Edit'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeleteGeminiKey}
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 12px', fontSize: '0.8rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 6 }}
+                        title="Delete API Key"
+                      >
+                        <Trash2 size={13} />
+                        <span>{lang === 'bn' ? 'মুছে ফেলুন' : 'Delete'}</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // Input Field for Entering/Editing Key
+                  <div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <input
+                          type="password"
+                          value={geminiKey}
+                          onChange={(e) => setGeminiKeyState(e.target.value)}
+                          placeholder="AIzaSy..."
+                          autoFocus
+                          style={{ width: '100%', padding: '10px 14px 10px 36px', fontSize: '0.9rem', fontFamily: 'var(--font-code)' }}
+                        />
+                        <Key size={16} color="var(--text-muted)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSaveGeminiKey}
+                        className="btn btn-primary"
+                        style={{ whiteSpace: 'nowrap' }}
+                      >
+                        {lang === 'bn' ? 'সেভ ও টেস্ট' : 'Save & Test'}
+                      </button>
+                      {getGeminiKey() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGeminiKeyState(getGeminiKey());
+                            setIsEditingKey(false);
+                          }}
+                          className="btn btn-secondary"
+                        >
+                          {t.cancel}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {geminiStatus && (
-                  <p style={{ marginTop: 8, fontSize: '0.82rem', fontWeight: 600, color: geminiStatus.includes('✅') ? 'var(--success)' : 'var(--warning)' }}>
+                  <p style={{ marginTop: 8, fontSize: '0.82rem', fontWeight: 600, color: geminiStatus.includes('✅') ? 'var(--success)' : geminiStatus.includes('🗑️') ? 'var(--text-muted)' : 'var(--warning)' }}>
                     {geminiStatus}
                   </p>
                 )}

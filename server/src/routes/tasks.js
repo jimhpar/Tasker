@@ -8,12 +8,16 @@ router.use(authenticateToken);
 // Get all tasks with flexible filters (workspaceType, date, client, taskType)
 router.get('/', async (req, res) => {
   try {
-    const { workspaceType, date, status, clientId, taskTypeId, search } = req.query;
+    const { workspaceType, date, status, clientId, taskTypeId, teamId, search } = req.query;
 
     const query = { userId: req.user.userId };
 
     if (workspaceType) {
       query.workspaceType = workspaceType;
+    }
+
+    if (teamId) {
+      query.teamId = teamId;
     }
 
     if (status) {
@@ -46,6 +50,7 @@ router.get('/', async (req, res) => {
     const tasks = await Task.find(query)
       .populate('clientId', 'name contactPerson company')
       .populate('taskTypeId', 'name category color')
+      .populate('teamId', 'name')
       .sort({ scheduledDate: 1, createdAt: -1 });
 
     res.json(tasks);
@@ -89,6 +94,7 @@ router.post('/', async (req, res) => {
       scheduledDate,
       dueDate,
       workspaceType,
+      teamId,
       clientId,
       taskTypeId,
       localFileAttachments
@@ -108,6 +114,7 @@ router.post('/', async (req, res) => {
       scheduledDate: scheduledDate ? new Date(scheduledDate) : new Date(),
       dueDate: dueDate ? new Date(dueDate) : null,
       workspaceType: workspaceType || 'Personal',
+      teamId: workspaceType === 'Team' ? (teamId || null) : null,
       clientId: clientId || null,
       taskTypeId: taskTypeId || null,
       localFileAttachments: localFileAttachments || []
@@ -116,7 +123,8 @@ router.post('/', async (req, res) => {
     const savedTask = await newTask.save();
     const populated = await Task.findById(savedTask._id)
       .populate('clientId', 'name contactPerson company')
-      .populate('taskTypeId', 'name category color');
+      .populate('taskTypeId', 'name category color')
+      .populate('teamId', 'name');
 
     res.status(201).json(populated);
   } catch (err) {
@@ -142,7 +150,8 @@ router.put('/:id', async (req, res) => {
       { new: true }
     )
       .populate('clientId', 'name contactPerson company')
-      .populate('taskTypeId', 'name category color');
+      .populate('taskTypeId', 'name category color')
+      .populate('teamId', 'name');
 
     if (!updatedTask) {
       return res.status(404).json({ error: 'Task not found' });

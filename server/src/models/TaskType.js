@@ -13,11 +13,21 @@ const taskTypeSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    default: 'General' // e.g. 'Agriculture', 'Tech', 'Retail', 'Design', 'General'
+    default: 'General'
+  },
+  workspaceType: {
+    type: String,
+    enum: ['Personal', 'Team'],
+    default: 'Personal'
+  },
+  teamId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Team',
+    default: null
   },
   color: {
     type: String,
-    default: '#6366F1'
+    default: '#090A0F'
   }
 }, {
   timestamps: true

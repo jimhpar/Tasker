@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { peopleApi } from '../services/api';
+import appLogo from '../assets/logo.svg';
 import {
   Sparkles,
   Bot,
@@ -11,25 +13,80 @@ import {
   Sun,
   Laptop,
   ChevronDown,
-  Languages
+  Languages,
+  Bell,
+  BellRing,
+  Volume2,
+  VolumeX,
+  Clock,
+  AlertTriangle,
+  AlertCircle,
+  CheckCheck,
+  Trash2
 } from 'lucide-react';
+import {
+  getStoredNotifications,
+  markAsRead,
+  markAllAsRead,
+  clearAllNotifications
+} from '../services/notificationService';
+import { getGeminiKey } from '../services/gemini';
 
 export default function Navbar({ onOpenAiChat, onOpenSettings }) {
   const { user, logout, theme, setTheme } = useAuth();
-  const { lang, toggleLanguage, setLanguage, t } = useLanguage();
+  const { lang, toggleLanguage, t } = useLanguage();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Close dropdown on outside click
+  // Gemini Key status
+  const [hasGeminiKey, setHasGeminiKey] = useState(() => !!getGeminiKey(user?.username || user?._id));
+
+  useEffect(() => {
+    setHasGeminiKey(!!getGeminiKey(user?.username || user?._id));
+  }, [user]);
+
+  // Notification states
+  const [notifications, setNotifications] = useState(getStoredNotifications);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(() => localStorage.getItem('tasker_sound_alerts_muted') === 'true');
+  const notifRef = useRef(null);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setNotifications(getStoredNotifications());
+    };
+    const handleKeyUpdate = () => {
+      setHasGeminiKey(!!getGeminiKey(user?.username || user?._id));
+    };
+    window.addEventListener('tasker_notifications_updated', handleUpdate);
+    window.addEventListener('tasker_gemini_key_updated', handleKeyUpdate);
+    return () => {
+      window.removeEventListener('tasker_notifications_updated', handleUpdate);
+      window.removeEventListener('tasker_gemini_key_updated', handleKeyUpdate);
+    };
+  }, [user]);
+
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
       }
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const toggleMute = () => {
+    const nextVal = !isMuted;
+    setIsMuted(nextVal);
+    localStorage.setItem('tasker_sound_alerts_muted', String(nextVal));
+  };
 
   return (
     <header
@@ -54,14 +111,20 @@ export default function Navbar({ onOpenAiChat, onOpenSettings }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            boxShadow: '0 4px 14px var(--primary-glow)'
+            width: 38,
+            height: 38
           }}
         >
-          <Sparkles size={22} color="#ffffff" />
+          <img
+            src={appLogo}
+            alt="Logo"
+            style={{ width: '100%', height: '100%', display: 'block' }}
+            onError={(e) => {
+              e.target.style.display = 'none';
+              if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+            }}
+          />
+          <Sparkles size={20} color="#ffffff" style={{ display: 'none' }} />
         </div>
         <div>
           <span style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.5px' }}>
@@ -84,7 +147,7 @@ export default function Navbar({ onOpenAiChat, onOpenSettings }) {
         </div>
       </div>
 
-      {/* Right Actions: Language Switcher + Gemini AI Button + Profile Menu */}
+      {/* Right Actions: Language + AI Planner + Notification Bell + Profile Menu */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {/* Language Switcher Pill (BN / EN) */}
         <button
@@ -106,32 +169,258 @@ export default function Navbar({ onOpenAiChat, onOpenSettings }) {
           <span>{lang === 'bn' ? 'বাংলা' : 'EN'}</span>
         </button>
 
-        {/* Gemini AI Reasoning Assistant Trigger */}
+        {/* AI Planner Trigger Button */}
         <button
           type="button"
           onClick={onOpenAiChat}
-          className="btn btn-primary"
+          className={hasGeminiKey ? 'btn btn-primary' : 'btn'}
           style={{
             padding: '8px 16px',
             borderRadius: 'var(--radius-full)',
             fontSize: '0.85rem',
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            transition: 'all 0.2s ease',
+            ...(hasGeminiKey
+              ? {
+                  boxShadow: '0 2px 10px rgba(99, 102, 241, 0.25)'
+                }
+              : {
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-secondary)',
+                  opacity: 0.85
+                })
           }}
-          title="Gemini AI Reasoning"
+          title={
+            hasGeminiKey
+              ? (lang === 'bn' ? 'AI প্ল্যানার ও শিডিউল অ্যাসিস্ট্যান্ট (Gemini সক্রিয়)' : 'AI Planner & Schedule Assistant (Gemini Connected)')
+              : (lang === 'bn' ? 'AI প্ল্যানার (Gemini API Key যুক্ত করুন)' : 'AI Planner (Connect Gemini API Key)')
+          }
         >
-          <Bot size={18} />
-          <span style={{ fontWeight: 700 }}>{t.aiChat}</span>
+          <Sparkles size={16} color={hasGeminiKey ? 'currentColor' : 'var(--text-muted)'} />
+          <span style={{ fontWeight: 800, color: hasGeminiKey ? 'inherit' : 'var(--text-secondary)' }}>
+            {lang === 'bn' ? 'AI প্ল্যানার' : 'AI Planner'}
+          </span>
           <span
             style={{
               width: 8,
               height: 8,
               borderRadius: '50%',
-              background: '#22c55e',
-              boxShadow: '0 0 8px #22c55e'
+              background: hasGeminiKey ? '#22c55e' : '#94a3b8',
+              boxShadow: hasGeminiKey ? '0 0 8px #22c55e' : 'none'
             }}
           />
         </button>
+
+        {/* Notification Bell with Badge & Dropdown */}
+        <div style={{ position: 'relative' }} ref={notifRef}>
+          <button
+            type="button"
+            onClick={() => setNotifOpen(!notifOpen)}
+            className="btn btn-secondary"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: '50%',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative'
+            }}
+            title="Notifications & Time Alerts"
+          >
+            {unreadCount > 0 ? (
+              <BellRing size={18} color="var(--primary)" />
+            ) : (
+              <Bell size={18} />
+            )}
+            {unreadCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -2,
+                  right: -2,
+                  background: '#ef4444',
+                  color: '#fff',
+                  borderRadius: 10,
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  padding: '1px 5px',
+                  minWidth: 16,
+                  textAlign: 'center',
+                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+                }}
+              >
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Notifications Dropdown Panel */}
+          {notifOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: 'calc(100% + 10px)',
+                width: 340,
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                boxShadow: '0 16px 40px rgba(0,0,0,0.22)',
+                zIndex: 100,
+                overflow: 'hidden',
+                animation: 'scaleUp 0.15s ease-out'
+              }}
+            >
+              {/* Notification Header */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  background: 'var(--header-bg)',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Bell size={16} color="var(--primary)" />
+                  <span style={{ fontWeight: 800, fontSize: '0.88rem' }}>
+                    {lang === 'bn' ? 'নোটিফিকেশন ও অ্যালার্ট' : 'Notifications & Alerts'}
+                  </span>
+                  {unreadCount > 0 && (
+                    <span style={{ fontSize: '0.7rem', background: 'var(--primary-glow)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>
+                      {unreadCount} new
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    className="btn-ghost"
+                    style={{ padding: 4, borderRadius: 6 }}
+                    title={isMuted ? 'Unmute alert sounds' : 'Mute alert sounds'}
+                  >
+                    {isMuted ? <VolumeX size={15} color="#ef4444" /> : <Volume2 size={15} color="var(--text-muted)" />}
+                  </button>
+                  {notifications.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => clearAllNotifications()}
+                      className="btn-ghost"
+                      style={{ padding: 4, borderRadius: 6, color: 'var(--text-muted)' }}
+                      title="Clear all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Notification Items List */}
+              <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <Bell size={32} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
+                    <p style={{ fontSize: '0.85rem', margin: 0, fontWeight: 600 }}>
+                      {lang === 'bn' ? 'কোনো নতুন নোটিফিকেশন নেই' : 'No notifications yet'}
+                    </p>
+                    <p style={{ fontSize: '0.72rem', margin: '4px 0 0', opacity: 0.8 }}>
+                      {lang === 'bn' ? 'কাজের সময় হলে AI আপনাকে অ্যালার্ট দেবে' : 'AI will alert you when tasks need attention'}
+                    </p>
+                  </div>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => markAsRead(n.id)}
+                      style={{
+                        padding: '12px 16px',
+                        borderBottom: '1px solid var(--border-subtle)',
+                        background: n.read ? 'transparent' : 'var(--primary-glow)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        gap: 12,
+                        alignItems: 'flex-start',
+                        transition: 'background 0.15s'
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 8,
+                          background: n.type === 'not_started' ? 'rgba(239, 68, 68, 0.12)' : n.type === 'in_progress_stuck' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(99, 102, 241, 0.12)',
+                          color: n.type === 'not_started' ? '#ef4444' : n.type === 'in_progress_stuck' ? '#f59e0b' : 'var(--primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          marginTop: 2
+                        }}
+                      >
+                        {n.type === 'not_started' ? <AlertCircle size={15} /> : n.type === 'in_progress_stuck' ? <Clock size={15} /> : <Sparkles size={15} />}
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                            {n.title}
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                          {n.message}
+                        </p>
+                        {n.type === 'connection_request' && n.requestId && (
+                          <div style={{ marginTop: 8 }}>
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await peopleApi.acceptConnectionRequest(n.requestId);
+                                markAsRead(n.id);
+                              }}
+                              className="btn btn-primary"
+                              style={{ padding: '3px 12px', fontSize: '0.72rem', borderRadius: 6 }}
+                            >
+                              {lang === 'bn' ? 'গ্রহণ করুন' : 'Accept Request'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Notification Footer */}
+              {notifications.length > 0 && (
+                <div style={{ padding: '8px 16px', background: 'var(--header-bg)', borderTop: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => markAllAsRead()}
+                    className="btn-ghost"
+                    style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 700, padding: '4px 8px' }}
+                  >
+                    <CheckCheck size={14} style={{ display: 'inline', marginRight: 4 }} />
+                    {lang === 'bn' ? 'সব পঠিত হিসেবে চিহ্নিত করুন' : 'Mark all as read'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Profile Avatar & Dropdown */}
         <div style={{ position: 'relative' }} ref={dropdownRef}>
@@ -154,11 +443,11 @@ export default function Navbar({ onOpenAiChat, onOpenSettings }) {
                 width: 32,
                 height: 32,
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+                background: '#0f172a',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: '#ffffff',
                 fontWeight: 700,
                 fontSize: '0.85rem'
               }}
@@ -218,8 +507,8 @@ export default function Navbar({ onOpenAiChat, onOpenSettings }) {
                           flex: 1,
                           padding: '6px',
                           borderRadius: 6,
-                          background: theme === item.key ? 'var(--primary)' : 'var(--bg-input)',
-                          color: theme === item.key ? '#fff' : 'var(--text-secondary)',
+                          background: theme === item.key ? 'var(--active-btn-bg)' : 'var(--bg-input)',
+                          color: theme === item.key ? 'var(--active-btn-text)' : 'var(--text-secondary)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center'
@@ -230,41 +519,6 @@ export default function Navbar({ onOpenAiChat, onOpenSettings }) {
                       </button>
                     );
                   })}
-                </div>
-              </div>
-
-              {/* Language Toggle in Dropdown */}
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Language:</span>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button
-                      onClick={() => setLanguage('bn')}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: 4,
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        background: lang === 'bn' ? 'var(--primary)' : 'var(--bg-input)',
-                        color: lang === 'bn' ? '#fff' : 'var(--text-secondary)'
-                      }}
-                    >
-                      বাংলা
-                    </button>
-                    <button
-                      onClick={() => setLanguage('en')}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: 4,
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        background: lang === 'en' ? 'var(--primary)' : 'var(--bg-input)',
-                        color: lang === 'en' ? '#fff' : 'var(--text-secondary)'
-                      }}
-                    >
-                      EN
-                    </button>
-                  </div>
                 </div>
               </div>
 

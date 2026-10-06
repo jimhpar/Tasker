@@ -11,6 +11,7 @@ import clientRoutes from './routes/clients.js';
 import taskTypeRoutes from './routes/taskTypes.js';
 import teamRoutes from './routes/teams.js';
 import communityRoutes from './routes/community.js';
+import adminRoutes from './routes/admin.js';
 
 dotenv.config();
 
@@ -112,6 +113,7 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/task-types', taskTypeRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/community', communityRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -129,7 +131,7 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/tasker';
 // Connect to MongoDB
 mongoose.connect(MONGO_URI)
   .then(() => {
-    console.log('✅ Connected to MongoDB successfully.');
+    console.log('✅ Connected to MongoDB Atlas (tasker) successfully.');
   })
   .catch((err) => {
     console.warn('⚠️ MongoDB connection warning (will retry in background):', err.message);

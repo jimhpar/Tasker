@@ -1,21 +1,24 @@
 {
   "name": "tasker",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "Tasker - Universal AI-Powered Productivity Suite",
   "main": "electron/main.js",
-  "author": "Tasker Team",
+  "author": "BlackBox THC",
   "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "npm --prefix client run dev",
     "dev:server": "npm --prefix server run dev",
+    "install:all": "npm install && npm --prefix client install && npm --prefix server install",
     "build:client": "npm --prefix client run build",
     "start:server": "npm --prefix server start",
     "start:desktop": "electron .",
+    "app": "concurrently -k -n \"SERVER,APP\" -c \"blue,green\" \"npm run start:server\" \"npm run build:client && electron .\"",
     "build:exe": "npm run build:client && electron-builder --win nsis --x64",
     "build:portable": "npm run build:client && electron-builder --win portable --x64",
     "build:all": "npm run build:client && electron-builder --win"
   },
   "build": {
-    "appId": "com.tasker.productivity",
+    "appId": "com.blackboxthc.tasker",
     "productName": "Tasker",
     "directories": {
       "output": "release"
@@ -25,6 +28,7 @@
       "client/dist/**/*"
     ],
     "win": {
+      "icon": "electron/assets/icon.ico",
       "target": [
         "nsis",
         "portable"
@@ -32,12 +36,16 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "include": "electron/installer.nsh"
     }
   },
   "devDependencies": {
+    "concurrently": "^10.0.5",
     "electron": "^41.2.0",
     "electron-builder": "^26.7.0"
   }
