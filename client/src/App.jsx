@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
-import { taskApi, peopleApi } from './services/api';
+import { taskApi, peopleApi, communityApi } from './services/api';
 import { checkForUpdates } from './services/updateChecker';
 import { Sparkles, Download } from 'lucide-react';
 
@@ -21,7 +21,13 @@ import SettingsModal from './components/SettingsModal';
 import ChatDrawer from './components/ChatDrawer';
 import AdminUsers from './components/admin/AdminUsers';
 import AdminPlans from './components/admin/AdminPlans';
-import { startTaskTimeMonitoring, stopTaskTimeMonitoring } from './services/notificationService';
+import {
+  startTaskTimeMonitoring,
+  stopTaskTimeMonitoring,
+  addNotification,
+  requestNotificationPermission,
+  showPhoneShadeNotification
+} from './services/notificationService';
 
 function MainApp() {
   const { user, loading } = useAuth();
@@ -119,6 +125,57 @@ function MainApp() {
       window.removeEventListener('tasker_global_unread_changed', handleUnreadChanged);
       window.removeEventListener('tasker_connection_requests_updated', handleRequestsChanged);
     };
+  }, [user]);
+
+  // Request native notification shade permission on app startup
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
+
+  // Live background poller for Direct (Personal) and Team messages -> triggers in-app and phone shade notifications
+  useEffect(() => {
+    if (!user) return;
+    let lastSeenTime = Date.now();
+
+    const inboxInterval = setInterval(async () => {
+      try {
+        const inbox = await communityApi.getInboxMessages(new Date(lastSeenTime).toISOString());
+        if (Array.isArray(inbox) && inbox.length > 0) {
+          const myU = (user.username || '').toLowerCase();
+          for (const msg of inbox) {
+            const senderU = (msg.senderUsername || '').toLowerCase();
+            if (senderU && senderU !== myU) {
+              const msgTime = new Date(msg.createdAt).getTime();
+              if (msgTime > lastSeenTime) {
+                lastSeenTime = msgTime;
+              }
+
+              const isDirect = msg.channelType === 'Direct';
+              const title = isDirect
+                ? `💬 @${msg.senderUsername} (Direct Message)`
+                : `👥 Team Message from @${msg.senderUsername}`;
+
+              const body = msg.content || (msg.audioData ? '🎤 Voice message' : 'New message');
+
+              // 1. In-App Notification (Toast / Notification Center / Sound)
+              addNotification({
+                title,
+                message: body,
+                type: 'chat',
+                playSound: true
+              });
+
+              // 2. Phone Notification Shade (Native Android status bar)
+              showPhoneShadeNotification(title, body);
+            }
+          }
+        }
+      } catch (e) {
+        // silent
+      }
+    }, 3500);
+
+    return () => clearInterval(inboxInterval);
   }, [user]);
 
   // When switching to community tab, mark global as read

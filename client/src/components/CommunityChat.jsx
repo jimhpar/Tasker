@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { communityApi, notifyDataChanged } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { playAlertChime, addNotification } from '../services/notificationService';
 import {
   Send,
   Mic,
@@ -11,10 +10,7 @@ import {
   Smile,
   Reply,
   X,
-  Bell,
-  BellOff,
-  CheckCircle2,
-  ArrowDownUp
+  CheckCircle2
 } from 'lucide-react';
 
 const QUICK_EMOJIS = ['👍', '❤️', '🔥', '🎉', '🚀', '😊', '💡', '👏', '✅', '🙌', '💯', '✨'];
@@ -41,32 +37,6 @@ export default function CommunityChat() {
   const [replyingTo, setReplyingTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  // Message Sort Order: 'newest_first' (Newest at top) vs 'bottom_up' (Traditional bottom flow)
-  const [sortOrder, setSortOrder] = useState(() => {
-    try {
-      return localStorage.getItem('tasker_global_chat_sort_order') || 'newest_first';
-    } catch {
-      return 'newest_first';
-    }
-  });
-
-  const toggleSortOrder = () => {
-    const next = sortOrder === 'newest_first' ? 'bottom_up' : 'newest_first';
-    setSortOrder(next);
-    try {
-      localStorage.setItem('tasker_global_chat_sort_order', next);
-    } catch {}
-  };
-
-  // Global Chat Subscription Status (Default: Muted/Unsubscribed)
-  const [isSubscribed, setIsSubscribed] = useState(() => {
-    try {
-      return localStorage.getItem('tasker_global_chat_subscribed') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -78,16 +48,23 @@ export default function CommunityChat() {
   const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // Derived messages list based on selected sort order
+  // WhatsApp Style: Chronological order (oldest at top, newest at bottom)
   const displayMessages = useMemo(() => {
-    const list = [...messages];
-    if (sortOrder === 'newest_first') {
-      // Newest messages appear right at the top
-      return list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return [...messages].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  }, [messages]);
+
+  // Jump to bottom immediately on mount and when messages arrive (like WhatsApp)
+  const scrollToBottom = (behavior = 'auto') => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior });
+    } else if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-    // Bottom up: oldest at top, newest at bottom
-    return list.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-  }, [messages, sortOrder]);
+  };
+
+  useEffect(() => {
+    scrollToBottom('auto');
+  }, [messages.length]);
 
   // Mark as read immediately on mount and clear red dot
   useEffect(() => {
@@ -111,15 +88,6 @@ export default function CommunityChat() {
     };
   }, []);
 
-  useEffect(() => {
-    if (sortOrder === 'bottom_up') {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-    } else if (messagesContainerRef.current) {
-      // For newest_first, start at top (newest)
-      messagesContainerRef.current.scrollTop = 0;
-    }
-  }, [messages.length, sortOrder]);
-
   const loadCommunityMessages = async () => {
     try {
       const data = await communityApi.getMessages();
@@ -128,17 +96,6 @@ export default function CommunityChat() {
       }
     } catch (e) {
       console.warn('Error loading community messages:', e);
-    }
-  };
-
-  const toggleSubscription = () => {
-    const next = !isSubscribed;
-    setIsSubscribed(next);
-    try {
-      localStorage.setItem('tasker_global_chat_subscribed', next ? 'true' : 'false');
-    } catch {}
-    if (next) {
-      playAlertChime();
     }
   };
 
@@ -152,14 +109,6 @@ export default function CommunityChat() {
     }
 
     if (!inputText.trim()) return;
-
-    // Auto-subscribe user if they send a message while unsubscribed
-    if (!isSubscribed) {
-      setIsSubscribed(true);
-      try {
-        localStorage.setItem('tasker_global_chat_subscribed', 'true');
-      } catch {}
-    }
 
     const sentText = inputText.trim();
     const currentReplying = replyingTo;
@@ -179,10 +128,15 @@ export default function CommunityChat() {
       createdAt: new Date().toISOString()
     };
 
-    // 0ms Optimistic UI Append - Message appears INSTANTLY!
+    // 0ms Optimistic UI Append - Message appears INSTANTLY at the bottom!
     setMessages((prev) => [...prev, optimisticMsg]);
+    setTimeout(() => scrollToBottom('smooth'), 40);
 
     try {
+      const payload = {
+        content: sentText,
+        replyTo: currentReplying ? { id: currentReplying._id, sender: currentReplying.senderUsername, text: currentReplying.content } : null
+      };
       const newMsg = await communityApi.sendMessage(payload);
       if (newMsg && newMsg._id) {
         setMessages((prev) => prev.map((m) => (m._id === tempId ? newMsg : m)));
@@ -362,57 +316,23 @@ export default function CommunityChat() {
           </div>
         </div>
 
-        {/* Actions: Sort Order Toggle & Subscribe */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {/* Newest First vs Standard Bottom-Up Toggle */}
-          <button
-            type="button"
-            onClick={toggleSortOrder}
-            className="btn-ghost"
+        {/* Clean Live Sync Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span
+            className="badge badge-success"
             style={{
-              padding: '6px 12px',
-              fontSize: '0.78rem',
-              borderRadius: 'var(--radius-full)',
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              background: sortOrder === 'newest_first' ? 'rgba(34, 197, 94, 0.12)' : 'var(--bg-input)',
-              border: '1px solid ' + (sortOrder === 'newest_first' ? 'rgba(34, 197, 94, 0.4)' : 'var(--border-subtle)'),
-              color: sortOrder === 'newest_first' ? '#16a34a' : 'var(--text-main)',
-              fontWeight: 700
-            }}
-            title={lang === 'bn' ? 'মেসেজ প্রদর্শন ক্রম পরিবর্তন' : 'Toggle message ordering'}
-          >
-            <ArrowDownUp size={14} />
-            <span>{sortOrder === 'newest_first' ? (lang === 'bn' ? '⚡ নতুন বার্তা আগে' : '⚡ Newest First') : (lang === 'bn' ? '💬 স্বাভাবিক ফ্লো' : '💬 Chat Flow')}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={toggleSubscription}
-            className={isSubscribed ? 'btn btn-primary' : 'btn btn-secondary'}
-            style={{
               padding: '6px 14px',
-              fontSize: '0.8rem',
-              borderRadius: 'var(--radius-full)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-full)'
             }}
-            title={isSubscribed ? 'Click to unsubscribe/mute global notifications' : 'Click to subscribe to global chat updates'}
           >
-            {isSubscribed ? (
-              <>
-                <Bell size={14} />
-                <span>{lang === 'bn' ? 'সাবস্ক্রাইব করা' : 'Subscribed'}</span>
-              </>
-            ) : (
-              <>
-                <BellOff size={14} color="var(--text-muted)" />
-                <span>{lang === 'bn' ? 'মিউট' : 'Muted'}</span>
-              </>
-            )}
-          </button>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+            {lang === 'bn' ? 'সরাসরি যুক্ত' : 'Live Sync'}
+          </span>
         </div>
       </div>
 
@@ -506,7 +426,7 @@ export default function CommunityChat() {
             </div>
           );
         })}
-        {sortOrder === 'bottom_up' && <div ref={messagesEndRef} />}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Reply Banner */}

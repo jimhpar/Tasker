@@ -82,4 +82,105 @@ router.post('/messages', optionalAuth, async (req, res) => {
   }
 });
 
+// GET /api/community/channel/:channelType/:channelId - Get messages for Direct or Team chat
+router.get('/channel/:channelType/:channelId', async (req, res) => {
+  try {
+    const { channelType, channelId } = req.params;
+    const messages = await Message.find({
+      channelType,
+      channelId: channelId.toLowerCase()
+    })
+      .populate('senderId', 'username profile')
+      .sort({ createdAt: 1 })
+      .limit(200);
+
+    res.json(messages);
+  } catch (err) {
+    console.error('Failed to fetch channel messages:', err);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// POST /api/community/channel/:channelType/:channelId - Send a Direct or Team message
+router.post('/channel/:channelType/:channelId', optionalAuth, async (req, res) => {
+  try {
+    const { channelType, channelId } = req.params;
+    const { content, audioData, replyTo, isMediaP2P, mediaMetadata, senderUsername } = req.body;
+
+    if (!content && !audioData && !mediaMetadata) {
+      return res.status(400).json({ error: 'Message content or audio is required' });
+    }
+
+    let validSenderId = req.user?.userId;
+    let finalUsername = req.user?.username || senderUsername || 'User';
+
+    if (!validSenderId || !mongoose.Types.ObjectId.isValid(validSenderId)) {
+      let dbUser = await User.findOne({ username: finalUsername.toLowerCase() });
+      if (dbUser) {
+        validSenderId = dbUser._id;
+        finalUsername = dbUser.username;
+      } else {
+        validSenderId = new mongoose.Types.ObjectId();
+      }
+    }
+
+    const newMessage = new Message({
+      channelType,
+      channelId: channelId.toLowerCase(),
+      senderId: validSenderId,
+      senderUsername: finalUsername,
+      content: content || '',
+      audioData: audioData || null,
+      replyTo: replyTo || null,
+      isMediaP2P: !!isMediaP2P,
+      mediaMetadata: mediaMetadata || null
+    });
+
+    const saved = await newMessage.save();
+    let populated = await Message.findById(saved._id).populate('senderId', 'username profile');
+    if (!populated) populated = saved;
+
+    res.status(201).json(populated);
+  } catch (err) {
+    console.error('Failed to send channel message:', err);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// GET /api/community/inbox - Poll incoming Direct and Team messages for notification dispatch
+router.get('/inbox', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    let myUsername = '';
+    if (authHeader) {
+      await new Promise(resolve => authenticateToken(req, res, resolve));
+      myUsername = req.user?.username?.toLowerCase();
+    }
+    if (!myUsername && req.query.username) {
+      myUsername = req.query.username.toLowerCase().trim();
+    }
+    if (!myUsername) return res.json([]);
+
+    const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 30 * 60 * 1000);
+    const directRegex = new RegExp(`(^|_)(${myUsername})(_|$)`, 'i');
+
+    const messages = await Message.find({
+      channelType: { $in: ['Direct', 'Team'] },
+      createdAt: { $gte: since },
+      senderUsername: { $ne: myUsername },
+      $or: [
+        { channelType: 'Direct', channelId: { $regex: directRegex } },
+        { channelType: 'Team' }
+      ]
+    })
+      .sort({ createdAt: -1 })
+      .limit(30);
+
+    res.json(messages);
+  } catch (err) {
+    console.error('Failed to fetch inbox messages:', err);
+    res.status(500).json({ error: 'Failed to fetch inbox' });
+  }
+});
+
 export default router;

@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { teamApi, peopleApi, notifyDataChanged } from '../services/api';
+import { teamApi, peopleApi, communityApi, notifyDataChanged } from '../services/api';
 import {
   MessageSquare,
   ChevronDown,
@@ -142,6 +142,45 @@ export default function ChatDrawer({ hideTrigger = false }) {
     } catch {}
   };
 
+  // Channel ID helper for Direct & Team channels
+  const getChannelInfo = useCallback((target) => {
+    if (!target) return { channelType: 'Direct', channelId: '' };
+    if (target.type === 'team') {
+      return { channelType: 'Team', channelId: String(target.id || target._id || target.name).toLowerCase() };
+    }
+    const myU = (user?.username || '').toLowerCase();
+    const partnerU = (target.username || target.name || target.id || '').toLowerCase();
+    return { channelType: 'Direct', channelId: `direct_${[myU, partnerU].sort().join('_')}` };
+  }, [user]);
+
+  const fetchChannelMessages = useCallback(async (target) => {
+    const t = target || activeTarget;
+    if (!t) return;
+    const { channelType, channelId } = getChannelInfo(t);
+    if (!channelId) return;
+
+    try {
+      const serverMsgs = await communityApi.getChannelMessages(channelType, channelId);
+      if (Array.isArray(serverMsgs) && serverMsgs.length > 0) {
+        const myU = (user?.username || '').toLowerCase();
+        const formatted = serverMsgs.map(m => ({
+          id: m._id || m.id,
+          sender: m.senderUsername || 'User',
+          text: m.content || '',
+          audioData: m.audioData || null,
+          time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isMe: (m.senderUsername || '').toLowerCase() === myU,
+          replyTo: m.replyTo
+        }));
+        setMessages(formatted);
+        const storageKey = `tasker_chat_history_${t.id}`;
+        try { localStorage.setItem(storageKey, JSON.stringify(formatted)); } catch {}
+      }
+    } catch (e) {
+      console.warn('Channel messages fetch error:', e);
+    }
+  }, [activeTarget, getChannelInfo, user]);
+
   // Load chat history for selected target
   const selectConversation = (target) => {
     setActiveTarget(target);
@@ -173,6 +212,9 @@ export default function ChatDrawer({ hideTrigger = false }) {
       setMessages(welcome);
       localStorage.setItem(storageKey, JSON.stringify(welcome));
     }
+
+    // Immediately fetch from cloud
+    fetchChannelMessages(target);
   };
 
   useEffect(() => {
@@ -181,25 +223,46 @@ export default function ChatDrawer({ hideTrigger = false }) {
     }
   }, [messages, isOpen, activeTarget]);
 
-  const handleSend = (e) => {
+  // Fast live polling for active conversation
+  useEffect(() => {
+    if (isOpen && activeTarget) {
+      fetchChannelMessages(activeTarget);
+      const interval = setInterval(() => {
+        fetchChannelMessages(activeTarget);
+      }, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, activeTarget, fetchChannelMessages]);
+
+  const handleSend = async (e) => {
     e?.preventDefault();
     if (!text.trim() || !activeTarget) return;
+
+    const sentText = text.trim();
+    const currentReplying = replyingTo;
 
     const newMsg = {
       id: Date.now(),
       sender: user?.username || 'You',
-      text: text.trim(),
+      text: sentText,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isMe: true,
-      replyTo: replyingTo ? { id: replyingTo.id, sender: replyingTo.sender, text: replyingTo.text } : null
+      replyTo: currentReplying ? { id: currentReplying.id, sender: currentReplying.sender, text: currentReplying.text } : null
     };
 
     const updated = [...messages, newMsg];
     setMessages(updated);
-    localStorage.setItem(`tasker_chat_history_${activeTarget.id}`, JSON.stringify(updated));
+    try { localStorage.setItem(`tasker_chat_history_${activeTarget.id}`, JSON.stringify(updated)); } catch {}
     setText('');
     setReplyingTo(null);
     setShowEmojiPicker(false);
+
+    // Save to Cloud MongoDB
+    const { channelType, channelId } = getChannelInfo(activeTarget);
+    await communityApi.sendChannelMessage(channelType, channelId, {
+      content: sentText,
+      replyTo: currentReplying ? { id: currentReplying.id, sender: currentReplying.sender, text: currentReplying.text } : null
+    });
     notifyDataChanged('chat', { targetId: activeTarget.id });
   };
 
@@ -245,7 +308,7 @@ export default function ChatDrawer({ hideTrigger = false }) {
     }
   };
 
-  const handleSendVoiceMessage = (base64Audio) => {
+  const handleSendVoiceMessage = async (base64Audio) => {
     if (!activeTarget) return;
     const newMsg = {
       id: Date.now(),
@@ -259,8 +322,16 @@ export default function ChatDrawer({ hideTrigger = false }) {
 
     const updated = [...messages, newMsg];
     setMessages(updated);
-    localStorage.setItem(`tasker_chat_history_${activeTarget.id}`, JSON.stringify(updated));
+    try { localStorage.setItem(`tasker_chat_history_${activeTarget.id}`, JSON.stringify(updated)); } catch {}
     setReplyingTo(null);
+
+    // Save to Cloud MongoDB
+    const { channelType, channelId } = getChannelInfo(activeTarget);
+    await communityApi.sendChannelMessage(channelType, channelId, {
+      content: '🎤 Voice message',
+      audioData: base64Audio,
+      replyTo: replyingTo ? { id: replyingTo.id, sender: replyingTo.sender, text: replyingTo.text } : null
+    });
     notifyDataChanged('chat', { targetId: activeTarget.id });
   };
 

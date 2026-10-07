@@ -1,5 +1,8 @@
+import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
+
 // Tasker Real-time Notification & Time Management Alert Service
-// Features: Web Audio API sound chime, desktop alert notifications, and automated task monitoring
+// Features: Web Audio API sound chime, desktop alert notifications, Android shade notifications, and automated task monitoring
 
 const NOTIFICATIONS_KEY = 'tasker_active_notifications_v1';
 const SOUND_MUTED_KEY = 'tasker_sound_alerts_muted';
@@ -57,6 +60,61 @@ export function playAlertChime() {
   } catch (e) {
     console.warn('Audio chime error:', e);
   }
+}
+
+// Request permission for push/local notifications on device
+export async function requestNotificationPermission() {
+  try {
+    if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+      const status = await LocalNotifications.checkPermissions();
+      if (status.display !== 'granted') {
+        await LocalNotifications.requestPermissions();
+      }
+      try {
+        await LocalNotifications.createChannel({
+          id: 'tasker_messages',
+          name: 'Tasker Messages',
+          description: 'Direct and team chat notifications',
+          importance: 5,
+          visibility: 1,
+          vibration: true
+        });
+      } catch (ce) {
+        console.warn('Channel creation error:', ce);
+      }
+    } else if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+    }
+  } catch (e) {
+    console.warn('Request notification permission error:', e);
+  }
+}
+
+// Show native phone notification shade on Android & fallback on desktop
+export async function showPhoneShadeNotification(title, body, id = Math.floor(Math.random() * 100000) + 1) {
+  try {
+    if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            title: title,
+            body: body,
+            id: id,
+            channelId: 'tasker_messages',
+            schedule: { at: new Date(Date.now() + 100) },
+            smallIcon: 'ic_launcher'
+          }
+        ]
+      });
+      return;
+    }
+  } catch (e) {
+    console.warn('Phone notification shade error:', e);
+  }
+
+  showDesktopNotification(title, body);
 }
 
 // Show native desktop system notification
@@ -132,7 +190,7 @@ export function addNotification({ title, message, type = 'reminder', taskId = nu
   if (playSound) {
     playAlertChime();
   }
-  showDesktopNotification(title, message);
+  showPhoneShadeNotification(title, message);
 
   return item;
 }

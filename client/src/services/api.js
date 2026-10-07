@@ -1117,6 +1117,86 @@ export const communityApi = {
     }
 
     return newMsg;
+  },
+
+  async getChannelMessages(channelType, channelId) {
+    const key = `tasker_channel_msgs_${channelType}_${channelId}`;
+    let local = [];
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) local = JSON.parse(raw) || [];
+    } catch {}
+
+    try {
+      const res = await request(`/community/channel/${encodeURIComponent(channelType)}/${encodeURIComponent(channelId)}`);
+      if (Array.isArray(res)) {
+        try { localStorage.setItem(key, JSON.stringify(res)); } catch {}
+        return res;
+      }
+    } catch (e) {
+      console.warn('Channel messages remote error:', e);
+    }
+    return local;
+  },
+
+  async sendChannelMessage(channelType, channelId, data) {
+    const user = getStoredUser() || { username: 'anonymous' };
+    const tempId = 'chmsg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const newMsg = {
+      _id: tempId,
+      channelType,
+      channelId,
+      senderId: user._id || user.id || 'u_me',
+      senderUsername: user.username || user.fullName || 'You',
+      content: data.content || data.text || '',
+      audioData: data.audioData || null,
+      replyTo: data.replyTo || null,
+      createdAt: new Date().toISOString()
+    };
+
+    // Save locally
+    const key = `tasker_channel_msgs_${channelType}_${channelId}`;
+    try {
+      const raw = localStorage.getItem(key);
+      const list = raw ? JSON.parse(raw) : [];
+      list.push(newMsg);
+      localStorage.setItem(key, JSON.stringify(list));
+    } catch {}
+
+    // Transmit to server
+    try {
+      const payloadToSend = {
+        content: data.content || data.text || '',
+        audioData: data.audioData || null,
+        replyTo: data.replyTo || null,
+        senderUsername: user.username || 'You'
+      };
+      const remoteRes = await request(`/community/channel/${encodeURIComponent(channelType)}/${encodeURIComponent(channelId)}`, {
+        method: 'POST',
+        body: JSON.stringify(payloadToSend)
+      });
+      if (remoteRes && remoteRes._id) {
+        return remoteRes;
+      }
+    } catch (e) {
+      console.warn('Send channel message remote error:', e);
+    }
+    return newMsg;
+  },
+
+  async getInboxMessages(since) {
+    const user = getStoredUser();
+    const myUsername = (user?.username || '').toLowerCase();
+    if (!myUsername) return [];
+
+    try {
+      const query = since ? `?username=${encodeURIComponent(myUsername)}&since=${encodeURIComponent(since)}` : `?username=${encodeURIComponent(myUsername)}`;
+      const res = await request(`/community/inbox${query}`);
+      if (Array.isArray(res)) return res;
+    } catch (e) {
+      // ignore
+    }
+    return [];
   }
 };
 
