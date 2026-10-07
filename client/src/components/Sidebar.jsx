@@ -16,7 +16,8 @@ import {
   X,
   Sliders,
   Sun,
-  Moon
+  Moon,
+  LogOut
 } from 'lucide-react';
 import { getGeminiKey } from '../services/gemini';
 
@@ -32,7 +33,7 @@ export default function Sidebar({
   onOpenSettings
 }) {
   const { t } = useLanguage();
-  const { user, theme, setTheme } = useAuth();
+  const { user, logout, theme, setTheme } = useAuth();
   const hasGeminiKey = !!getGeminiKey(user?.username || user?._id);
   const usernameLower = user?.username?.toLowerCase() || '';
   const isAdmin = user?.role === 'admin' ||
@@ -422,6 +423,35 @@ export default function Sidebar({
           Files are saved securely on your device, not on public cloud servers.
         </p>
       </div>
+
+      {/* Logout Button at bottom of sidebar */}
+      <button
+        type="button"
+        onClick={() => {
+          if (onCloseMobile) onCloseMobile();
+          logout();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          width: '100%',
+          padding: '10px 14px',
+          borderRadius: 'var(--radius-md)',
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          color: '#ef4444',
+          fontWeight: 600,
+          fontSize: '0.85rem',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease'
+        }}
+        className="btn-ghost"
+      >
+        <LogOut size={16} />
+        <span>{t.logout || 'Log Out'}</span>
+      </button>
     </aside>
   </>
   );
