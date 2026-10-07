@@ -200,26 +200,24 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
             <div>{t.sat}</div>
           </div>
 
-          {/* Days Grid */}
+          {/* Days Grid - Uniform 7-Column Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+            {/* Previous Month Days */}
             {Array.from({ length: firstDayIndex }).map((_, i) => {
               const dayNum = prevMonthDays - firstDayIndex + i + 1;
               return (
                 <div
                   key={`prev-${i}`}
-                  className="calendar-day-cell opacity-30"
-                  style={{
-                    padding: 6,
-                    borderRadius: 10,
-                    background: 'var(--bg-input)',
-                    fontSize: '0.8rem'
-                  }}
+                  className="calendar-day-cell is-prev-month"
                 >
-                  {dayNum}
+                  <span className="calendar-date-number prev-month-num">
+                    {dayNum}
+                  </span>
                 </div>
               );
             })}
 
+            {/* Current Month Days - All Strictly Uniform Size */}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const dayNum = i + 1;
               const dateObj = new Date(year, month, dayNum);
@@ -234,56 +232,43 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
                 <div
                   key={`day-${dayNum}`}
                   onClick={() => setSelectedDate(dateObj)}
-                  className={`calendar-day-cell ${isSelected ? 'selected' : ''}`}
-                  style={{
-                    padding: '8px 6px',
-                    borderRadius: 12,
-                    background: isSelected ? 'var(--primary-glow)' : 'var(--bg-input)',
-                    border: isSelected ? '2px solid var(--primary)' : isToday ? '1px solid var(--primary)' : '1px solid var(--border-subtle)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    transition: 'all 0.15s'
-                  }}
+                  className={`calendar-day-cell ${isSelected ? 'selected' : ''} ${isToday ? 'is-today' : ''}`}
+                  title={`${dateKey}${dayTasks.length > 0 ? ` (${dayTasks.length} tasks)` : ''}`}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span
-                      style={{
-                        fontWeight: isToday || isSelected ? 800 : 600,
-                        fontSize: '0.85rem',
-                        color: isToday ? 'var(--primary)' : 'inherit'
-                      }}
-                    >
-                      {dayNum}
-                    </span>
-                    {isToday && (
-                      <span style={{ fontSize: '0.65rem', background: 'var(--primary)', color: 'var(--bg-app)', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
-                        {t.todayBadge}
-                      </span>
-                    )}
-                  </div>
+                  <span className={`calendar-date-number ${isToday ? 'today-number' : ''} ${isSelected ? 'selected-number' : ''}`}>
+                    {dayNum}
+                  </span>
 
-                  {/* Task Status Indicators / Badges */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
-                    {dayTasks.length > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                        {doneCount > 0 && (
-                          <span style={{ fontSize: '0.68rem', color: 'var(--success)', fontWeight: 700 }}>
-                            ● {doneCount} {t.completedCount}
-                          </span>
-                        )}
-                        {pendingCount > 0 && (
-                          <span style={{ fontSize: '0.68rem', color: isPast(dateObj) ? 'var(--danger)' : 'var(--warning)', fontWeight: 700 }}>
-                            ● {pendingCount} {t.pendingCount}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  {/* Task Indicators: Compact Non-Expanding Dots */}
+                  {dayTasks.length > 0 && (
+                    <div className="calendar-dots-indicator">
+                      {doneCount > 0 && (
+                        <span className="calendar-dot done" title={`${doneCount} ${t.completedCount}`} />
+                      )}
+                      {pendingCount > 0 && (
+                        <span
+                          className={`calendar-dot ${isPast(dateObj) ? 'overdue' : 'pending'}`}
+                          title={`${pendingCount} ${t.pendingCount}`}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
+
+            {/* Trailing Next Month Days to Complete 7-Column Grid */}
+            {(() => {
+              const totalRendered = firstDayIndex + daysInMonth;
+              const trailingCount = (7 - (totalRendered % 7)) % 7;
+              return Array.from({ length: trailingCount }).map((_, i) => (
+                <div key={`next-${i}`} className="calendar-day-cell is-prev-month">
+                  <span className="calendar-date-number prev-month-num">
+                    {i + 1}
+                  </span>
+                </div>
+              ));
+            })()}
           </div>
         </div>
 

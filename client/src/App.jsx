@@ -276,7 +276,7 @@ function MainApp() {
       </div>
 
       {/* Floating Bottom-Right Team Chat Drawer (Hidden on community chat to avoid overlap) */}
-      <ChatDrawer hideTrigger={activeTab === 'community'} />
+      <ChatDrawer hideTrigger={activeTab === 'community' || activeTab === 'people'} />
 
       {/* Universal Task Creation & Edit Modal */}
       <TaskModal

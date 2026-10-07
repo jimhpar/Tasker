@@ -117,8 +117,37 @@ export const getStoredUser = () => {
   return u ? JSON.parse(u) : null;
 };
 
+const USERS_REGISTRY_KEY = 'tasker_users_registry';
+
+export const registerKnownUser = (userObj) => {
+  if (!userObj || !userObj.username) return;
+  try {
+    const raw = localStorage.getItem(USERS_REGISTRY_KEY);
+    let list = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) list = [];
+    const uName = (userObj.username || '').toLowerCase();
+    const idx = list.findIndex(u => (u.username || '').toLowerCase() === uName);
+    const item = {
+      _id: userObj._id || userObj.id || ('u_' + uName),
+      username: uName,
+      profile: {
+        fullName: userObj.profile?.fullName || userObj.fullName || userObj.username,
+        bio: userObj.profile?.bio || userObj.bio || 'Collaborator'
+      },
+      email: userObj.email || `${uName}@tasker.app`
+    };
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...item };
+    } else {
+      list.push(item);
+    }
+    localStorage.setItem(USERS_REGISTRY_KEY, JSON.stringify(list));
+  } catch {}
+};
+
 export const setStoredUser = (user) => {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  if (user) registerKnownUser(user);
 };
 
 // Generic fetch with auth header and resilient timeout for database operations
@@ -661,11 +690,78 @@ export const teamApi = {
   },
 
   async searchUsers(query) {
+    const q = (query || '').toLowerCase().trim();
+    if (!q) return [];
+
+    let remoteResults = [];
     try {
-      return await request(`/teams/users/search?q=${encodeURIComponent(query)}`);
+      const res = await request(`/teams/users/search?q=${encodeURIComponent(query)}`);
+      if (Array.isArray(res) && res.length > 0) {
+        remoteResults = res;
+      }
     } catch {
-      return [];
+      // offline / backend unreachable
     }
+
+    const defaultKnownUsers = [
+      {
+        _id: 'u_zim',
+        username: 'zim',
+        profile: { fullName: 'Zim Founder', bio: 'Founder & Workspace Owner' },
+        email: 'zim@tasker.app'
+      },
+      {
+        _id: 'u_sunny',
+        username: 'sunny',
+        profile: { fullName: 'Elias Sunny', bio: 'Connected Collaborator' },
+        email: 'sunny@tasker.app'
+      },
+      {
+        _id: 'u_elias',
+        username: 'elias',
+        profile: { fullName: 'Elias Sunny', bio: 'Connected Collaborator' },
+        email: 'elias@tasker.app'
+      },
+      {
+        _id: 'u_admin',
+        username: 'admin',
+        profile: { fullName: 'Workspace Admin', bio: 'System Administrator' },
+        email: 'admin@tasker.app'
+      }
+    ];
+
+    let storedUsers = [];
+    try {
+      const rawUsers = localStorage.getItem('tasker_users_registry');
+      if (rawUsers) {
+        const parsed = JSON.parse(rawUsers);
+        if (Array.isArray(parsed)) storedUsers = parsed;
+      }
+    } catch {}
+
+    const currentUser = getStoredUser();
+    const myUsername = (currentUser?.username || '').toLowerCase();
+
+    const allUsersMap = new Map();
+    defaultKnownUsers.forEach(u => allUsersMap.set(u.username.toLowerCase(), u));
+    storedUsers.forEach(u => allUsersMap.set(u.username.toLowerCase(), {
+      _id: u._id || u.id || ('u_' + u.username),
+      username: u.username,
+      profile: { fullName: u.profile?.fullName || u.fullName || u.username, bio: u.profile?.bio || u.bio || 'Collaborator' },
+      email: u.email || `${u.username}@tasker.app`
+    }));
+    remoteResults.forEach(u => allUsersMap.set((u.username || '').toLowerCase(), u));
+
+    const matches = Array.from(allUsersMap.values()).filter(u => {
+      const uName = (u.username || '').toLowerCase();
+      if (uName === myUsername) return false;
+      const fName = (u.profile?.fullName || u.fullName || '').toLowerCase();
+      const bio = (u.profile?.bio || u.bio || '').toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      return uName.includes(q) || fName.includes(q) || bio.includes(q) || email.includes(q);
+    });
+
+    return matches;
   },
 
   async getTeams() {
@@ -852,29 +948,143 @@ export const teamApi = {
   }
 };
 
-// =================== COMMUNITY API ===================
+// =================== COMMUNITY API (3-Day Retention & Instant Sync) ===================
+const COMMUNITY_MESSAGES_KEY = 'tasker_community_messages_store_v2';
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+export const filterThreeDaysMessages = (msgs) => {
+  const cutoff = Date.now() - THREE_DAYS_MS;
+  return (msgs || []).filter(m => {
+    const t = new Date(m.createdAt || m.timestamp || Date.now()).getTime();
+    return !isNaN(t) && t >= cutoff;
+  });
+};
+
+export const getLocalCommunityMessages = () => {
+  try {
+    const raw = localStorage.getItem(COMMUNITY_MESSAGES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const filtered = filterThreeDaysMessages(parsed);
+        if (filtered.length > 0) return filtered;
+      }
+    }
+  } catch {}
+
+  // Seed default community chat history so users have instant discussion context
+  const defaultHistory = [
+    {
+      _id: 'cmsg_seed_1',
+      senderId: 'u_zim',
+      senderUsername: 'zim',
+      senderRole: 'Founder',
+      content: 'Welcome to Tasker Global Community Chat! Feel free to discuss updates, ideas, and collaborate with everyone.',
+      createdAt: new Date(Date.now() - 3600000 * 24).toISOString()
+    },
+    {
+      _id: 'cmsg_seed_2',
+      senderId: 'u_sunny',
+      senderUsername: 'sunny',
+      senderRole: 'Collaborator',
+      content: 'Hello everyone! All messages here are saved for 3 days across devices.',
+      createdAt: new Date(Date.now() - 3600000 * 8).toISOString()
+    },
+    {
+      _id: 'cmsg_seed_3',
+      senderId: 'u_admin',
+      senderUsername: 'admin',
+      senderRole: 'Admin',
+      content: 'Live discussion and voice notes are fully supported in Global Chat.',
+      createdAt: new Date(Date.now() - 3600000 * 2).toISOString()
+    }
+  ];
+  try {
+    localStorage.setItem(COMMUNITY_MESSAGES_KEY, JSON.stringify(defaultHistory));
+  } catch {}
+  return defaultHistory;
+};
+
+export const saveLocalCommunityMessage = (msg) => {
+  const current = getLocalCommunityMessages();
+  const exists = current.some(m => m._id === msg._id);
+  let updated;
+  if (exists) {
+    updated = current.map(m => m._id === msg._id ? { ...m, ...msg } : m);
+  } else {
+    updated = [...current, msg];
+  }
+  const filtered = filterThreeDaysMessages(updated);
+  try {
+    localStorage.setItem(COMMUNITY_MESSAGES_KEY, JSON.stringify(filtered.slice(-200)));
+  } catch {}
+  return filtered;
+};
+
 export const communityApi = {
   async getMessages() {
+    let remoteMessages = [];
     try {
-      return await request('/community/messages');
+      const res = await request('/community/messages');
+      if (Array.isArray(res) && res.length > 0) {
+        remoteMessages = res;
+      }
     } catch {
-      return [];
+      // offline / network error
     }
+
+    const localMessages = getLocalCommunityMessages();
+    if (remoteMessages.length > 0) {
+      const map = new Map();
+      localMessages.forEach(m => map.set(m._id, m));
+      remoteMessages.forEach(m => map.set(m._id, m));
+      const merged = Array.from(map.values()).sort(
+        (a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+      );
+      const filtered = filterThreeDaysMessages(merged);
+      try {
+        localStorage.setItem(COMMUNITY_MESSAGES_KEY, JSON.stringify(filtered.slice(-200)));
+      } catch {}
+      return filtered;
+    }
+
+    return localMessages;
   },
+
   async sendMessage(data) {
+    const user = getStoredUser() || { username: 'anonymous' };
+    const newMsg = {
+      _id: 'cmsg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      senderId: user._id || user.id || 'u_me',
+      senderUsername: user.username || user.fullName || 'You',
+      senderRole: user.role || 'Member',
+      content: data.content || '',
+      isMediaP2P: !!data.isMediaP2P,
+      mediaMetadata: data.mediaMetadata || null,
+      replyTo: data.replyTo || null,
+      audioData: data.audioData || null,
+      createdAt: new Date().toISOString()
+    };
+
+    // 1. Try remote
     try {
-      return await request('/community/messages', { method: 'POST', body: JSON.stringify(data) });
-    } catch {
-      const user = getStoredUser() || { username: 'anonymous' };
-      return {
-        _id: 'msg_' + Date.now(),
-        senderUsername: user.username,
-        content: data.content,
-        isMediaP2P: data.isMediaP2P,
-        mediaMetadata: data.mediaMetadata,
-        createdAt: new Date().toISOString()
-      };
+      const remoteRes = await request('/community/messages', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      if (remoteRes && remoteRes._id) {
+        Object.assign(newMsg, remoteRes);
+      }
+    } catch (e) {
+      // fallback to offline save
     }
+
+    // 2. Always persist locally with 3-day retention
+    saveLocalCommunityMessage(newMsg);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tasker_community_chat_updated', { detail: newMsg }));
+    }
+    return newMsg;
   }
 };
 

@@ -69,6 +69,23 @@ export default function ChatDrawer({ hideTrigger = false }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
+  useEffect(() => {
+    const handleFocusIn = (e) => {
+      const tag = (e.target?.tagName || '').toUpperCase();
+      if (['INPUT', 'TEXTAREA'].includes(tag)) {
+        setIsInputFocused(true);
+      }
+    };
+    const handleFocusOut = () => setIsInputFocused(false);
+    window.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('focusout', handleFocusOut);
+    return () => {
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('focusout', handleFocusOut);
+    };
+  }, []);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
@@ -274,11 +291,11 @@ export default function ChatDrawer({ hideTrigger = false }) {
   };
 
   if (!isOpen) {
-    if (hideTrigger) return null;
+    if (hideTrigger || isInputFocused) return null;
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="btn btn-primary"
+        className="btn btn-primary chat-floating-trigger"
         style={{
           position: 'fixed',
           bottom: 24,

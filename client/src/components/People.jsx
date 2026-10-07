@@ -38,6 +38,7 @@ export default function People() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   // Filter connected list
   const [filterQuery, setFilterQuery] = useState('');
@@ -95,9 +96,11 @@ export default function People() {
     e?.preventDefault();
     if (!searchQuery.trim()) {
       setSearchResults([]);
+      setHasSearched(false);
       return;
     }
     setSearchLoading(true);
+    setHasSearched(true);
     try {
       const res = await teamApi.searchUsers(searchQuery);
       setSearchResults(res || []);
@@ -489,13 +492,21 @@ export default function People() {
         </form>
 
         {/* Search Results Drawer */}
+        {hasSearched && !searchLoading && searchResults.length === 0 && (
+          <div style={{ marginTop: 14, padding: '12px 16px', background: 'var(--bg-input)', borderRadius: 10, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
+            {lang === 'bn'
+              ? `"${searchQuery}" দিয়ে কোনো ইউজার পাওয়া যায়নি। ('sunny', 'zim', বা 'admin' লিখে চেষ্টা করুন)`
+              : `No users found matching "${searchQuery}". Try searching for 'sunny', 'zim', or 'admin'.`}
+          </div>
+        )}
+
         {searchResults.length > 0 && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              {lang === 'bn' ? 'সার্চ রেজাল্ট:' : 'Search Results:'}
+              {lang === 'bn' ? `সার্চ রেজাল্ট (${searchResults.length}):` : `Search Results (${searchResults.length}):`}
             </span>
             {searchResults.map((u) => {
-              const isAlreadyConnected = people.some(p => p.username.toLowerCase() === u.username.toLowerCase());
+              const isAlreadyConnected = people.some(p => (p.username || '').toLowerCase() === (u.username || '').toLowerCase());
 
               return (
                 <div
@@ -506,23 +517,45 @@ export default function People() {
                     justifyContent: 'space-between',
                     padding: '10px 14px',
                     background: 'var(--bg-input)',
-                    borderRadius: 10
+                    borderRadius: 10,
+                    gap: 10
                   }}
                 >
-                  <div>
-                    <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>
-                      {u.profile?.fullName || u.username}
-                    </span>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: 8 }}>
-                      @{u.username}
-                    </span>
-                    {u.profile?.bio && (
-                      <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 2 }}>{u.profile.bio}</p>
-                    )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: 'var(--primary)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        fontSize: '0.9rem',
+                        flexShrink: 0
+                      }}
+                    >
+                      {(u.profile?.fullName || u.username || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {u.profile?.fullName || u.username}
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: 6, fontWeight: 500 }}>
+                          @{u.username}
+                        </span>
+                      </div>
+                      {u.profile?.bio && (
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {u.profile.bio}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div>
+                  <div style={{ flexShrink: 0 }}>
                     {isAlreadyConnected ? (
-                      <span className="badge badge-done" style={{ fontSize: '0.75rem' }}>
+                      <span className="badge badge-done" style={{ fontSize: '0.75rem', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Check size={12} /> {lang === 'bn' ? 'কানেক্টেড' : 'Connected'}
                       </span>
                     ) : (
@@ -530,7 +563,7 @@ export default function People() {
                         type="button"
                         onClick={() => handleConnectPerson(u)}
                         className="btn btn-primary"
-                        style={{ fontSize: '0.78rem', padding: '6px 14px' }}
+                        style={{ fontSize: '0.78rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}
                       >
                         <UserPlus size={14} /> {lang === 'bn' ? 'কানেক্ট করুন' : 'Connect'}
                       </button>

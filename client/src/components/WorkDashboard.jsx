@@ -60,7 +60,7 @@ export default function WorkDashboard({
     const handleSync = () => {
       taskApi.getAll().then(res => {
         if (Array.isArray(res)) setTasks(res);
-      }).catch(() => {});
+      }).catch(() => { });
     };
     window.addEventListener('tasker_tasks_updated', handleSync);
     return () => window.removeEventListener('tasker_tasks_updated', handleSync);
@@ -569,326 +569,326 @@ export default function WorkDashboard({
                   minHeight: 480
                 }}
               >
-              {/* Column Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>{col.title}</span>
-                  <span className={`badge ${col.color}`}>{col.tasks.length}</span>
-                </div>
-              </div>
-
-              {/* Column Tasks */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
-                {col.tasks.length === 0 ? (
-                  <div style={{ padding: '36px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', border: '1px dashed var(--border-subtle)', borderRadius: 12 }}>
-                    {t.noTasksInCol}
+                {/* Column Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid var(--border-subtle)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>{col.title}</span>
+                    <span className={`badge ${col.color}`}>{col.tasks.length}</span>
                   </div>
-                ) : (
-                  col.tasks.map((taskItem) => {
-                    const isDoneOrApproved = taskItem.status === 'Done' || taskItem.status === 'Approved';
-                    const isMenuOpen = openMenuTaskId === taskItem._id;
-                    const taskTypeName = getTaskTypeName(taskItem);
+                </div>
 
-                    return (
-                      <div
-                        key={taskItem._id}
-                        className="card"
-                        style={{
-                          padding: 14,
-                          background: 'var(--bg-card)',
-                          borderRadius: 'var(--radius-md)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 10,
-                          position: 'relative'
-                        }}
-                      >
-                        {/* Top Bar: Task Type Badge & 3-Dot Menu */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          {taskTypeName ? (
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 5,
-                                padding: '3px 8px',
-                                borderRadius: 6,
-                                background: 'var(--bg-input)',
-                                border: '1px solid var(--border-subtle)',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                color: 'var(--text-main)'
-                              }}
-                            >
-                              <Tag size={11} color="var(--text-muted)" />
-                              {taskTypeName}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                              {taskItem.workspaceType === 'Team' ? '👥 Team' : '👤 Personal'}
-                            </span>
-                          )}
+                {/* Column Tasks */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+                  {col.tasks.length === 0 ? (
+                    <div style={{ padding: '36px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', border: '1px dashed var(--border-subtle)', borderRadius: 12 }}>
+                      {t.noTasksInCol}
+                    </div>
+                  ) : (
+                    col.tasks.map((taskItem) => {
+                      const isDoneOrApproved = taskItem.status === 'Done' || taskItem.status === 'Approved';
+                      const isMenuOpen = openMenuTaskId === taskItem._id;
+                      const taskTypeName = getTaskTypeName(taskItem);
 
-                          {/* 3-Dot Menu Button */}
-                          <div style={{ position: 'relative' }}>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuTaskId(isMenuOpen ? null : taskItem._id);
-                              }}
-                              className="btn-ghost"
-                              style={{ padding: 4, borderRadius: 6 }}
-                              title="More options"
-                            >
-                              <MoreVertical size={16} color="var(--text-secondary)" />
-                            </button>
-
-                            {/* Dropdown Menu */}
-                            {isMenuOpen && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
+                      return (
+                        <div
+                          key={taskItem._id}
+                          className="card"
+                          style={{
+                            padding: 14,
+                            background: 'var(--bg-card)',
+                            borderRadius: 'var(--radius-md)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 10,
+                            position: 'relative'
+                          }}
+                        >
+                          {/* Top Bar: Task Type Badge & 3-Dot Menu */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            {taskTypeName ? (
+                              <span
                                 style={{
-                                  position: 'absolute',
-                                  right: 0,
-                                  top: 'calc(100% + 4px)',
-                                  width: 220,
-                                  background: 'var(--bg-dropdown)',
-                                  border: 'var(--glass-border)',
-                                  borderRadius: 10,
-                                  boxShadow: 'var(--shadow-lg)',
-                                  padding: 6,
-                                  zIndex: 100,
-                                  animation: 'scaleUp 0.12s ease-out'
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5,
+                                  padding: '3px 8px',
+                                  borderRadius: 6,
+                                  background: 'var(--bg-input)',
+                                  border: '1px solid var(--border-subtle)',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  color: 'var(--text-main)'
                                 }}
                               >
-                                {/* Edit Task */}
-                                <button
-                                  type="button"
-                                  onClick={() => { setOpenMenuTaskId(null); onEditTask(taskItem); }}
-                                  className="btn-ghost"
-                                  style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
-                                >
-                                  <Edit2 size={14} color="var(--primary)" /> {t.editTask}
-                                </button>
+                                <Tag size={11} color="var(--text-muted)" />
+                                {taskTypeName}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                {taskItem.workspaceType === 'Team' ? '👥 Team' : '👤 Personal'}
+                              </span>
+                            )}
 
-                                {/* Carry Forward */}
-                                <button
-                                  type="button"
-                                  onClick={() => { setOpenMenuTaskId(null); setCarryForwardTask(taskItem); }}
-                                  className="btn-ghost"
-                                  style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
-                                >
-                                  <CalendarClock size={14} color="var(--accent)" /> {t.carryForward}
-                                </button>
+                            {/* 3-Dot Menu Button */}
+                            <div style={{ position: 'relative' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenuTaskId(isMenuOpen ? null : taskItem._id);
+                                }}
+                                className="btn-ghost"
+                                style={{ padding: 4, borderRadius: 6 }}
+                                title="More options"
+                              >
+                                <MoreVertical size={16} color="var(--text-secondary)" />
+                              </button>
 
-                                {/* Send back to To Do */}
-                                {taskItem.status !== 'To Do' && (
+                              {/* Dropdown Menu */}
+                              {isMenuOpen && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: 'calc(100% + 4px)',
+                                    width: 220,
+                                    background: 'var(--bg-dropdown)',
+                                    border: 'var(--glass-border)',
+                                    borderRadius: 10,
+                                    boxShadow: 'var(--shadow-lg)',
+                                    padding: 6,
+                                    zIndex: 100,
+                                    animation: 'scaleUp 0.12s ease-out'
+                                  }}
+                                >
+                                  {/* Edit Task */}
                                   <button
                                     type="button"
-                                    onClick={() => { setOpenMenuTaskId(null); handleStatusChange(taskItem._id, 'To Do'); }}
+                                    onClick={() => { setOpenMenuTaskId(null); onEditTask(taskItem); }}
                                     className="btn-ghost"
                                     style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
                                   >
-                                    <RotateCcw size={14} color="var(--warning)" /> {t.sendBackTodo}
+                                    <Edit2 size={14} color="var(--primary)" /> {t.editTask}
                                   </button>
-                                )}
 
-                                {/* Send back to In Progress (if in Review or Done) */}
-                                {(taskItem.status === 'Submit for Review' || taskItem.status === 'Done' || taskItem.status === 'Approved') && (
+                                  {/* Carry Forward */}
                                   <button
                                     type="button"
-                                    onClick={() => { setOpenMenuTaskId(null); handleStatusChange(taskItem._id, 'In Progress'); }}
+                                    onClick={() => { setOpenMenuTaskId(null); setCarryForwardTask(taskItem); }}
                                     className="btn-ghost"
                                     style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
                                   >
-                                    <RotateCcw size={14} color="var(--warning)" /> {t.sendBackInProgress}
+                                    <CalendarClock size={14} color="var(--accent)" /> {t.carryForward}
                                   </button>
-                                )}
 
-                                {/* Move between Personal and Team */}
-                                <button
-                                  type="button"
-                                  onClick={() => { setOpenMenuTaskId(null); handleToggleWorkspace(taskItem._id); }}
-                                  className="btn-ghost"
-                                  style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
-                                >
-                                  <ArrowRightLeft size={14} /> {taskItem.workspaceType === 'Personal' ? t.moveToTeam : t.moveToPersonal}
-                                </button>
+                                  {/* Send back to To Do */}
+                                  {taskItem.status !== 'To Do' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenMenuTaskId(null); handleStatusChange(taskItem._id, 'To Do'); }}
+                                      className="btn-ghost"
+                                      style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
+                                    >
+                                      <RotateCcw size={14} color="var(--warning)" /> {t.sendBackTodo}
+                                    </button>
+                                  )}
 
-                                {/* Delete */}
-                                <button
-                                  type="button"
-                                  onClick={() => { setOpenMenuTaskId(null); handleDeleteTask(taskItem._id); }}
-                                  className="btn-ghost"
-                                  style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--danger)', borderTop: '1px solid var(--border-subtle)', marginTop: 4 }}
-                                >
-                                  <Trash2 size={14} /> {t.deleteTask}
-                                </button>
+                                  {/* Send back to In Progress (if in Review or Done) */}
+                                  {(taskItem.status === 'Submit for Review' || taskItem.status === 'Done' || taskItem.status === 'Approved') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenMenuTaskId(null); handleStatusChange(taskItem._id, 'In Progress'); }}
+                                      className="btn-ghost"
+                                      style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
+                                    >
+                                      <RotateCcw size={14} color="var(--warning)" /> {t.sendBackInProgress}
+                                    </button>
+                                  )}
+
+                                  {/* Move between Personal and Team */}
+                                  <button
+                                    type="button"
+                                    onClick={() => { setOpenMenuTaskId(null); handleToggleWorkspace(taskItem._id); }}
+                                    className="btn-ghost"
+                                    style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
+                                  >
+                                    <ArrowRightLeft size={14} /> {taskItem.workspaceType === 'Personal' ? t.moveToTeam : t.moveToPersonal}
+                                  </button>
+
+                                  {/* Delete */}
+                                  <button
+                                    type="button"
+                                    onClick={() => { setOpenMenuTaskId(null); handleDeleteTask(taskItem._id); }}
+                                    className="btn-ghost"
+                                    style={{ width: '100%', padding: '8px 10px', fontSize: '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--danger)', borderTop: '1px solid var(--border-subtle)', marginTop: 4 }}
+                                  >
+                                    <Trash2 size={14} /> {t.deleteTask}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Task Title */}
+                          <h4 style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)', lineHeight: 1.4, margin: '2px 0 0' }}>
+                            {taskItem.title}
+                          </h4>
+
+                          {taskItem.brief && (
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                              {taskItem.brief}
+                            </p>
+                          )}
+
+                          {/* Tags & Metadata */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            {taskItem.priority && (
+                              <span className={`badge ${taskItem.priority === 'Urgent' ? 'badge-urgent' : taskItem.priority === 'High' ? 'badge-progress' : 'badge-todo'}`} style={{ fontSize: '0.65rem' }}>
+                                {taskItem.priority}
+                              </span>
+                            )}
+
+                            {taskItem.clientId && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--primary)' }}>
+                                <Building size={12} /> {taskItem.clientId.name || 'Client'}
+                              </span>
+                            )}
+
+                            {taskItem.sourceLink && (
+                              <a
+                                href={taskItem.sourceLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--accent)', textDecoration: 'none' }}
+                              >
+                                <ExternalLink size={12} /> Link
+                              </a>
+                            )}
+
+                            {taskItem.localFileAttachments?.length > 0 && (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                {taskItem.localFileAttachments.map((fItem, fIdx) => (
+                                  <button
+                                    key={fIdx}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPreviewFile(fItem);
+                                      setIsPreviewOpen(true);
+                                    }}
+                                    className="badge badge-todo"
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      textTransform: 'none',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 3,
+                                      padding: '2px 6px'
+                                    }}
+                                    title="View or download attachment"
+                                  >
+                                    <Paperclip size={11} />
+                                    {fItem.name || fItem.fileName || `File ${fIdx + 1}`}
+                                  </button>
+                                ))}
                               </div>
                             )}
                           </div>
-                        </div>
 
-                        {/* Task Title */}
-                        <h4 style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)', lineHeight: 1.4, margin: '2px 0 0' }}>
-                          {taskItem.title}
-                        </h4>
-
-                        {taskItem.brief && (
-                          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                            {taskItem.brief}
-                          </p>
-                        )}
-
-                        {/* Tags & Metadata */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          {taskItem.priority && (
-                            <span className={`badge ${taskItem.priority === 'Urgent' ? 'badge-urgent' : taskItem.priority === 'High' ? 'badge-progress' : 'badge-todo'}`} style={{ fontSize: '0.65rem' }}>
-                              {taskItem.priority}
-                            </span>
-                          )}
-
-                          {taskItem.clientId && (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--primary)' }}>
-                              <Building size={12} /> {taskItem.clientId.name || 'Client'}
-                            </span>
-                          )}
-
-                          {taskItem.sourceLink && (
-                            <a
-                              href={taskItem.sourceLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--accent)', textDecoration: 'none' }}
-                            >
-                              <ExternalLink size={12} /> Link
-                            </a>
-                          )}
-
-                          {taskItem.localFileAttachments?.length > 0 && (
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                              {taskItem.localFileAttachments.map((fItem, fIdx) => (
-                                <button
-                                  key={fIdx}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPreviewFile(fItem);
-                                    setIsPreviewOpen(true);
-                                  }}
-                                  className="badge badge-todo"
-                                  style={{
-                                    fontSize: '0.68rem',
-                                    textTransform: 'none',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 3,
-                                    padding: '2px 6px'
-                                  }}
-                                  title="View or download attachment"
-                                >
-                                  <Paperclip size={11} />
-                                  {fItem.name || fItem.fileName || `File ${fIdx + 1}`}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Professional Action Buttons (Arrows removed!) */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border-subtle)', marginTop: 4 }}>
-                          {/* Left: Prominent State Transition Buttons */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-                            {/* TO DO CARD: Prominent "Start Work" Button */}
-                            {taskItem.status === 'To Do' && (
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(taskItem._id, 'In Progress')}
-                                className="btn btn-primary"
-                                style={{
-                                  padding: '7px 16px',
-                                  fontSize: '0.82rem',
-                                  fontWeight: 700,
-                                  borderRadius: 8,
-                                  flex: 1
-                                }}
-                              >
-                                <Play size={14} fill="currentColor" /> {t.startWork}
-                              </button>
-                            )}
-
-                            {/* IN PROGRESS CARD: Prominent "Done" (or "Submit Review") + "Carry Forward" */}
-                            {taskItem.status === 'In Progress' && (
-                              <>
+                          {/* Professional Action Buttons (Arrows removed!) */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border-subtle)', marginTop: 4 }}>
+                            {/* Left: Prominent State Transition Buttons */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                              {/* TO DO CARD: Prominent "Start Work" Button */}
+                              {taskItem.status === 'To Do' && (
                                 <button
                                   type="button"
-                                  onClick={() => handleStatusChange(taskItem._id, activeWorkspace === 'Team' ? 'Submit for Review' : 'Done')}
+                                  onClick={() => handleStatusChange(taskItem._id, 'In Progress')}
                                   className="btn btn-primary"
                                   style={{
-                                    padding: '7px 14px',
+                                    padding: '7px 16px',
                                     fontSize: '0.82rem',
                                     fontWeight: 700,
                                     borderRadius: 8,
                                     flex: 1
                                   }}
                                 >
-                                  <Check size={14} /> {activeWorkspace === 'Team' ? t.submitReviewBtn : t.markDone}
+                                  <Play size={14} fill="currentColor" /> {t.startWork}
                                 </button>
+                              )}
+
+                              {/* IN PROGRESS CARD: Prominent "Done" (or "Submit Review") + "Carry Forward" */}
+                              {taskItem.status === 'In Progress' && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStatusChange(taskItem._id, activeWorkspace === 'Team' ? 'Submit for Review' : 'Done')}
+                                    className="btn btn-primary"
+                                    style={{
+                                      padding: '7px 14px',
+                                      fontSize: '0.82rem',
+                                      fontWeight: 700,
+                                      borderRadius: 8,
+                                      flex: 1
+                                    }}
+                                  >
+                                    <Check size={14} /> {activeWorkspace === 'Team' ? t.submitReviewBtn : t.markDone}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCarryForwardTask(taskItem)}
+                                    className="btn btn-secondary"
+                                    style={{
+                                      padding: '7px 10px',
+                                      fontSize: '0.78rem',
+                                      borderRadius: 8
+                                    }}
+                                    title={t.carryForward}
+                                  >
+                                    <CalendarClock size={15} color="var(--primary)" />
+                                  </button>
+                                </>
+                              )}
+
+                              {/* SUBMIT FOR REVIEW (Team view): Prominent "Approve" Button */}
+                              {taskItem.status === 'Submit for Review' && (
                                 <button
                                   type="button"
-                                  onClick={() => setCarryForwardTask(taskItem)}
-                                  className="btn btn-secondary"
+                                  onClick={() => handleStatusChange(taskItem._id, 'Approved')}
+                                  className="btn btn-primary"
                                   style={{
-                                    padding: '7px 10px',
-                                    fontSize: '0.78rem',
-                                    borderRadius: 8
+                                    padding: '7px 16px',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 700,
+                                    borderRadius: 8,
+                                    flex: 1,
+                                    background: 'linear-gradient(135deg, #10b981, #059669)'
                                   }}
-                                  title={t.carryForward}
                                 >
-                                  <CalendarClock size={15} color="var(--primary)" />
+                                  <Check size={14} /> {t.approveBtn}
                                 </button>
-                              </>
-                            )}
+                              )}
 
-                            {/* SUBMIT FOR REVIEW (Team view): Prominent "Approve" Button */}
-                            {taskItem.status === 'Submit for Review' && (
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(taskItem._id, 'Approved')}
-                                className="btn btn-primary"
-                                style={{
-                                  padding: '7px 16px',
-                                  fontSize: '0.82rem',
-                                  fontWeight: 700,
-                                  borderRadius: 8,
-                                  flex: 1,
-                                  background: 'linear-gradient(135deg, #10b981, #059669)'
-                                }}
-                              >
-                                <Check size={14} /> {t.approveBtn}
-                              </button>
-                            )}
-
-                            {/* APPROVED / DONE: Completed badge */}
-                            {isDoneOrApproved && (
-                              <span style={{ fontSize: '0.8rem', color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <CheckCircle2 size={16} /> {taskItem.status === 'Approved' ? t.approved : t.done}
-                              </span>
-                            )}
+                              {/* APPROVED / DONE: Completed badge */}
+                              {isDoneOrApproved && (
+                                <span style={{ fontSize: '0.8rem', color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <CheckCircle2 size={16} /> {taskItem.status === 'Approved' ? t.approved : t.done}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
+                      );
+                    })
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </>
-    )}
+            ))}
+          </div>
+        </>
+      )}
 
       {/* VIEW 2: LIST VIEW */}
       {activeView === 'list' && (

@@ -24,11 +24,14 @@ export default function CommunityChat() {
 
   const [messages, setMessages] = useState(() => {
     try {
-      const cached = localStorage.getItem('tasker_community_cached_messages');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-        return parsed.filter(m => new Date(m.createdAt || m.timestamp || Date.now()).getTime() >= threeDaysAgo);
+      const raw = localStorage.getItem('tasker_community_messages_store_v2') || localStorage.getItem('tasker_community_cached_messages');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+          const valid = parsed.filter(m => new Date(m.createdAt || m.timestamp || Date.now()).getTime() >= threeDaysAgo);
+          if (valid.length > 0) return valid;
+        }
       }
     } catch {}
     return [];
@@ -84,24 +87,11 @@ export default function CommunityChat() {
   const loadCommunityMessages = async () => {
     try {
       const data = await communityApi.getMessages();
-      if (Array.isArray(data)) {
-        const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-        const valid = data.filter(m => new Date(m.createdAt || m.timestamp || Date.now()).getTime() >= threeDaysAgo);
-        setMessages(valid);
-        try {
-          localStorage.setItem('tasker_community_cached_messages', JSON.stringify(valid.slice(-100)));
-        } catch {}
+      if (Array.isArray(data) && data.length > 0) {
+        setMessages(data);
       }
     } catch (e) {
-      console.warn('Network error loading community messages, using local cache:', e);
-      try {
-        const cached = localStorage.getItem('tasker_community_cached_messages');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-          setMessages(parsed.filter(m => new Date(m.createdAt || m.timestamp || Date.now()).getTime() >= threeDaysAgo));
-        }
-      } catch {}
+      console.warn('Error loading community messages:', e);
     }
   };
 
@@ -128,29 +118,8 @@ export default function CommunityChat() {
       } catch {}
     }
 
-    const tempId = 'temp_' + Date.now();
     const sentText = inputText.trim();
     const currentReplying = replyingTo;
-
-    const optimisticMsg = {
-      _id: tempId,
-      senderId: user?._id || user?.id || 'me',
-      senderUsername: user?.username || user?.fullName || 'You',
-      senderRole: user?.role || 'Member',
-      content: sentText,
-      isMediaP2P: false,
-      replyTo: currentReplying ? { id: currentReplying._id, sender: currentReplying.senderUsername, text: currentReplying.content } : null,
-      createdAt: new Date().toISOString()
-    };
-
-    // 0ms instant optimistic addition
-    setMessages((prev) => {
-      const next = [...prev, optimisticMsg];
-      try {
-        localStorage.setItem('tasker_community_cached_messages', JSON.stringify(next.slice(-100)));
-      } catch {}
-      return next;
-    });
 
     setInputText('');
     setReplyingTo(null);
@@ -165,15 +134,9 @@ export default function CommunityChat() {
     try {
       const newMsg = await communityApi.sendMessage(payload);
       if (newMsg && newMsg._id) {
-        if (payload.replyTo) {
-          newMsg.replyTo = payload.replyTo;
-        }
         setMessages((prev) => {
-          const updated = prev.map((m) => (m._id === tempId ? newMsg : m));
-          try {
-            localStorage.setItem('tasker_community_cached_messages', JSON.stringify(updated.slice(-100)));
-          } catch {}
-          return updated;
+          if (prev.some(m => m._id === newMsg._id)) return prev;
+          return [...prev, newMsg];
         });
       }
       notifyDataChanged('community_chat');
@@ -377,6 +340,17 @@ export default function CommunityChat() {
 
       {/* Messages Scroll Area */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {messages.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+            <Globe size={42} style={{ margin: '0 auto 12px', opacity: 0.35 }} />
+            <h4 style={{ fontWeight: 700, margin: 0, fontSize: '0.95rem' }}>
+              {lang === 'bn' ? 'গত ৩ দিনে কোনো বার্তা নেই' : 'No messages in the last 3 days'}
+            </h4>
+            <p style={{ fontSize: '0.8rem', marginTop: 4 }}>
+              {lang === 'bn' ? 'নিচের বক্সে বার্তা লিখে আলোচনা শুরু করুন!' : 'Type a message below to start the community conversation!'}
+            </p>
+          </div>
+        )}
         {messages.map((msg, idx) => {
           const isMe = msg.senderUsername === user?.username;
 
