@@ -15,6 +15,7 @@
     "app": "concurrently -k -n \"SERVER,APP\" -c \"blue,green\" \"npm run start:server\" \"npm run build:client && electron .\"",
     "build:exe": "npm run build:client && electron-builder --win nsis --x64",
     "build:portable": "npm run build:client && electron-builder --win portable --x64",
+    "build:apk": "npm run build:client && npx cap sync android --prefix client && cmd.exe /c client\\android\\build_apk.bat",
     "build:all": "npm run build:client && electron-builder --win"
   },
   "build": {

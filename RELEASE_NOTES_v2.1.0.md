@@ -41,16 +41,26 @@
 
 ## 📦 Installation Instructions
 
+### 💻 Windows Desktop (NSIS Setup Wizard)
 1. Download **`Tasker Setup 2.1.0.exe`** from the Assets below.
 2. Run the installer to launch the Setup Wizard.
 3. Choose your preferred installation directory.
 4. Launch **Tasker** directly from your Desktop or Start Menu.
 
+### 📱 Android Mobile (APK)
+1. Download **`Tasker.apk`** from the Assets below.
+2. Open the `.apk` on your Android device (allow "Install from Unknown Sources" if prompted).
+3. Tap **Install** and launch Tasker on your phone or tablet.
+
 ---
 
-### SHA-256 Checksum
+### SHA-256 Checksums
 ```text
 File: Tasker Setup 2.1.0.exe
 Target: Windows x64 (NSIS)
 SHA-256: 62FF6766FED7EE3C7A3B406146648FA00AF89BD563E633EFDA036E1F09DDFC23
+
+File: Tasker.apk
+Target: Android (Universal ARM64 / x86_64)
+SHA-256: 934FEC6172188DB0CD08B3AE21DC03241BA67144C58D16D262A918195AB9BD7D
 ```

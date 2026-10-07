@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tasker</string>
+    <string name="title_activity_main">Tasker</string>
+    <string name="package_name">com.blackboxthc.tasker</string>
+    <string name="custom_url_scheme">com.blackboxthc.tasker</string>
+</resources>

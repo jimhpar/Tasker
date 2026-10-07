@@ -1,0 +1,10 @@
+{
+  "appId": "com.blackboxthc.tasker",
+  "appName": "Tasker",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}
