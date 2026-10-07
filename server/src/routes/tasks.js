@@ -1,6 +1,9 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Task from '../models/Task.js';
 import { authenticateToken } from '../middleware/auth.js';
+
+const toValidObjectId = (val) => (val && mongoose.Types.ObjectId.isValid(val)) ? val : null;
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -10,14 +13,22 @@ router.get('/', async (req, res) => {
   try {
     const { workspaceType, date, status, clientId, taskTypeId, teamId, search } = req.query;
 
-    const query = { userId: req.user.userId };
-
-    if (workspaceType) {
-      query.workspaceType = workspaceType;
-    }
-
-    if (teamId) {
-      query.teamId = teamId;
+    let query = {};
+    if (workspaceType === 'Team') {
+      query.workspaceType = 'Team';
+      if (teamId) {
+        query.teamId = teamId;
+      }
+      query.$or = [
+        { userId: req.user.userId },
+        { assignedTo: req.user.userId },
+        ...(teamId ? [{ teamId }] : [])
+      ];
+    } else {
+      query.userId = req.user.userId;
+      if (workspaceType) {
+        query.workspaceType = workspaceType;
+      }
     }
 
     if (status) {
@@ -48,9 +59,11 @@ router.get('/', async (req, res) => {
     }
 
     const tasks = await Task.find(query)
+      .populate('userId', 'username name email')
       .populate('clientId', 'name contactPerson company')
       .populate('taskTypeId', 'name category color')
       .populate('teamId', 'name')
+      .populate('assignedTo', 'name username email')
       .sort({ scheduledDate: 1, createdAt: -1 });
 
     res.json(tasks);
@@ -97,6 +110,7 @@ router.post('/', async (req, res) => {
       teamId,
       clientId,
       taskTypeId,
+      assignedTo,
       localFileAttachments
     } = req.body;
 
@@ -106,6 +120,7 @@ router.post('/', async (req, res) => {
 
     const newTask = new Task({
       userId: req.user.userId,
+      createdBy: req.user.username || 'zim',
       title: title.trim(),
       brief: brief || '',
       sourceLink: sourceLink || '',
@@ -114,17 +129,20 @@ router.post('/', async (req, res) => {
       scheduledDate: scheduledDate ? new Date(scheduledDate) : new Date(),
       dueDate: dueDate ? new Date(dueDate) : null,
       workspaceType: workspaceType || 'Personal',
-      teamId: workspaceType === 'Team' ? (teamId || null) : null,
-      clientId: clientId || null,
-      taskTypeId: taskTypeId || null,
+      teamId: workspaceType === 'Team' ? toValidObjectId(teamId) : null,
+      clientId: toValidObjectId(clientId),
+      taskTypeId: toValidObjectId(taskTypeId),
+      assignedTo: toValidObjectId(assignedTo),
       localFileAttachments: localFileAttachments || []
     });
 
     const savedTask = await newTask.save();
     const populated = await Task.findById(savedTask._id)
+      .populate('userId', 'username name email')
       .populate('clientId', 'name contactPerson company')
       .populate('taskTypeId', 'name category color')
-      .populate('teamId', 'name');
+      .populate('teamId', 'name')
+      .populate('assignedTo', 'name username email');
 
     res.status(201).json(populated);
   } catch (err) {
@@ -145,13 +163,15 @@ router.put('/:id', async (req, res) => {
     }
 
     const updatedTask = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.userId },
+      { _id: req.params.id },
       { $set: updates },
       { new: true }
     )
+      .populate('userId', 'username name email')
       .populate('clientId', 'name contactPerson company')
       .populate('taskTypeId', 'name category color')
-      .populate('teamId', 'name');
+      .populate('teamId', 'name')
+      .populate('assignedTo', 'name username email');
 
     if (!updatedTask) {
       return res.status(404).json({ error: 'Task not found' });

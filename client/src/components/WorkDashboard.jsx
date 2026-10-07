@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { taskApi, clientApi, taskTypeApi, teamApi } from '../services/api';
+import { taskApi, clientApi, taskTypeApi, teamApi, getStoredUser, isTaskOwnedByCurrentUser } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import {
   Plus,
   Kanban,
@@ -29,10 +30,13 @@ import {
 export default function WorkDashboard({
   tasks,
   setTasks,
+  user: propUser,
   onOpenNewTask,
   onEditTask
 }) {
   const { t, lang } = useLanguage();
+  const authContext = useAuth();
+  const currentUser = propUser || authContext?.user || getStoredUser();
 
   const [activeWorkspace, setActiveWorkspace] = useState('Personal'); // 'Personal' | 'Team'
   const [activeView, setActiveView] = useState('kanban'); // 'kanban' | 'list'
@@ -119,23 +123,13 @@ export default function WorkDashboard({
 
     // Filter personal tasks strictly by user ownership so Elias Sunny doesn't see Zim's personal tasks!
     if (activeWorkspace === 'Personal') {
-      const myId = (user?._id || user?.id || '').toString().toLowerCase();
-      const myUsername = (user?.username || '').toLowerCase();
-      const ownerId = (taskItem.userId?._id || taskItem.userId || '').toString().toLowerCase();
-      const ownerName = (taskItem.createdBy || '').toLowerCase();
-      if (ownerId || ownerName) {
-        const isMine = (myId && ownerId === myId) ||
-                       (myUsername && ownerName === myUsername) ||
-                       (myUsername && ownerId === myUsername);
-        if (!isMine) return false;
-      } else if (myUsername !== 'zim' && myUsername !== 'zim_founder') {
-        return false;
-      }
+      if (!isTaskOwnedByCurrentUser(taskItem, currentUser)) return false;
     }
 
     // Filter out future scheduled tasks from today's Work Dashboard (user requirement: future date tasks show in calendar view)
     const taskDateStr = (taskItem.dueDate || taskItem.scheduledDate || '').split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     if (taskDateStr && taskDateStr > todayStr) {
       return false;
     }

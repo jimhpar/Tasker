@@ -204,6 +204,7 @@ function MainApp() {
             <WorkDashboard
               tasks={tasks}
               setTasks={setTasks}
+              user={user}
               onOpenNewTask={handleOpenTaskModal}
               onEditTask={handleEditTask}
             />

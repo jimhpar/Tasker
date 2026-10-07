@@ -1,3 +1,4 @@
+import { isTaskOwnedByCurrentUser } from '../services/api';
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -52,8 +53,20 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
     setSelectedDate(today);
   };
 
+  const jumpToTomorrow = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setCurrentDate(tomorrow);
+    setSelectedDate(tomorrow);
+  };
+
   const formatDateKey = (d) => {
+    if (!d) return '';
+    if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.trim())) {
+      return d.trim();
+    }
     const dateObj = new Date(d);
+    if (isNaN(dateObj.getTime())) return '';
     return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
   };
 
@@ -68,21 +81,14 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
   const tasksByDate = {};
   tasks.forEach((taskItem) => {
     if (taskItem.workspaceType === 'Personal') {
-      const ownerId = (taskItem.userId?._id || taskItem.userId || '').toString().toLowerCase();
-      const ownerName = (taskItem.createdBy || '').toLowerCase();
-      if (ownerId || ownerName) {
-        const isMine = (myId && ownerId === myId) ||
-                       (myUsername && ownerName === myUsername) ||
-                       (myUsername && ownerId === myUsername);
-        if (!isMine) return;
-      } else if (myUsername !== 'zim' && myUsername !== 'zim_founder') {
-        return;
-      }
+      if (!isTaskOwnedByCurrentUser(taskItem, user)) return;
     }
 
-    const key = formatDateKey(taskItem.scheduledDate || taskItem.createdAt);
-    if (!tasksByDate[key]) tasksByDate[key] = [];
-    tasksByDate[key].push(taskItem);
+    const key = formatDateKey(taskItem.dueDate) || formatDateKey(taskItem.scheduledDate) || formatDateKey(taskItem.createdAt);
+    if (key) {
+      if (!tasksByDate[key]) tasksByDate[key] = [];
+      tasksByDate[key].push(taskItem);
+    }
   });
 
   const selectedDateTasks = tasksByDate[selectedDateKey] || [];
@@ -155,6 +161,13 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
             style={{ fontSize: '0.8rem', padding: '6px 12px' }}
           >
             {t.today}
+          </button>
+          <button
+            onClick={jumpToTomorrow}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+          >
+            {lang === 'bn' ? 'আগামীকাল' : 'Tomorrow'}
           </button>
         </div>
 

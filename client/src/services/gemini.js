@@ -51,26 +51,38 @@ export const getCurrentUserKey = () => {
 
 export const getGeminiKey = (customUserKey = null) => {
   const userKey = (customUserKey || getCurrentUserKey() || '').trim().toLowerCase();
-  if (!userKey) {
-    return '';
+  
+  // 1. If a specific userKey is provided (and not 'default'), check scoped key
+  if (userKey && userKey !== 'default') {
+    const scoped = localStorage.getItem(`tasker_gemini_api_key_${userKey}`);
+    if (scoped) return scoped;
+
+    const u = getCurrentUser();
+    if (u?._id && u._id.toLowerCase() !== userKey) {
+      const idScoped = localStorage.getItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`);
+      if (idScoped) return idScoped;
+    }
   }
 
-  // Check username-scoped key first
-  const scoped = localStorage.getItem(`tasker_gemini_api_key_${userKey}`);
-  if (scoped) return scoped;
+  // 2. Check zim/zim_founder key
+  const zimKey = localStorage.getItem('tasker_gemini_api_key_zim');
+  if (zimKey) return zimKey;
 
-  const u = getCurrentUser();
-  if (u?._id && u._id.toLowerCase() !== userKey) {
-    const idScoped = localStorage.getItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`);
-    if (idScoped) return idScoped;
-  }
+  // 3. Check legacy or general keys
+  const legacy = localStorage.getItem(GEMINI_KEY_STORAGE);
+  if (legacy) return legacy;
 
-  // Only zim/zim_founder can use zim's key
-  if (userKey === 'zim' || userKey === 'zim_founder') {
-    return localStorage.getItem('tasker_gemini_api_key_zim') || '';
-  }
+  // 4. Check any available tasker_gemini_api_key_* in localStorage
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('tasker_gemini_api_key_')) {
+        const val = localStorage.getItem(k);
+        if (val && val.trim().length > 10) return val.trim();
+      }
+    }
+  } catch {}
 
-  // Any other user (e.g. sunny, elias sunny) MUST have their own key connected
   return '';
 };
 

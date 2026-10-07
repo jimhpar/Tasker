@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authApi, getToken, removeToken, getStoredUser } from '../services/api';
+import { authApi, getToken, removeToken, getStoredUser, setStoredUser } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -49,6 +49,21 @@ export const AuthProvider = ({ children }) => {
       } else {
         applyTheme('Light');
       }
+    }
+    if (token) {
+      authApi.getMe().then(serverUser => {
+        if (serverUser && (serverUser._id || serverUser.id)) {
+          const storedLatest = getStoredUser() || {};
+          const enriched = {
+            ...storedLatest,
+            ...serverUser,
+            _id: serverUser._id || serverUser.id,
+            id: serverUser._id || serverUser.id
+          };
+          setStoredUser(enriched);
+          setUser(enriched);
+        }
+      }).catch(() => {});
     }
     setLoading(false);
 

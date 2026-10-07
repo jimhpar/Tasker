@@ -309,6 +309,42 @@ const saveLocalTasks = (tasks) => {
   localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(tasks));
 };
 
+export const isTaskOwnedByCurrentUser = (task, currentUser) => {
+  if (!task) return false;
+  if (task.workspaceType !== 'Personal') return true;
+  if (!currentUser) return true;
+
+  const myId = (currentUser._id || currentUser.id || '').toString().toLowerCase();
+  const myUsername = (currentUser.username || '').toLowerCase();
+  const isZim = myUsername === 'zim' || myUsername === 'zim_founder';
+
+  const ownerId = (task.userId?._id || task.userId || '').toString().toLowerCase();
+  const ownerUsername = (task.userId?.username || '').toLowerCase();
+  const createdBy = (task.createdBy || '').toLowerCase();
+
+  // 1. Direct ID match
+  if (myId && ownerId && (myId === ownerId || ownerId.includes(myId) || myId.includes(ownerId))) {
+    return true;
+  }
+
+  // 2. Direct username match
+  if (myUsername && ((createdBy && myUsername === createdBy) || (ownerUsername && myUsername === ownerUsername))) {
+    return true;
+  }
+
+  // 3. For Zim (default admin/founder)
+  // Show tasks as long as they don't explicitly belong to another colleague (e.g. Elias)
+  if (isZim) {
+    if (['elias', 'sunny'].includes(createdBy) || ['elias', 'sunny'].includes(ownerUsername)) {
+      return false;
+    }
+    return true;
+  }
+
+  // 4. Default for other users: only if created by them
+  return false;
+};
+
 export const taskApi = {
   async getAll(params = {}) {
     let list = [];
@@ -330,26 +366,8 @@ export const taskApi = {
       }
     }
 
-    // Filter personal tasks strictly by user ownership so Elias Sunny doesn't see Zim's personal tasks!
     const currentUser = getStoredUser();
-    const myId = (currentUser?._id || currentUser?.id || '').toString().toLowerCase();
-    const myUsername = (currentUser?.username || '').toLowerCase();
-
-    return list.filter(t => {
-      if (t.workspaceType === 'Personal') {
-        const ownerId = (t.userId?._id || t.userId || '').toString().toLowerCase();
-        const ownerName = (t.createdBy || '').toLowerCase();
-        if (ownerId || ownerName) {
-          const isMine = (myId && ownerId === myId) ||
-                         (myUsername && ownerName === myUsername) ||
-                         (myUsername && ownerId === myUsername);
-          return isMine;
-        }
-        // Legacy tasks without owner: only Zim sees them
-        return myUsername === 'zim' || myUsername === 'zim_founder';
-      }
-      return true;
-    });
+    return list.filter(t => isTaskOwnedByCurrentUser(t, currentUser));
   },
 
   async create(data) {

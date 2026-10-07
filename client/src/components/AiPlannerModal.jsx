@@ -14,6 +14,8 @@ import {
   verifyGeminiKey,
   fetchLatestGeminiModel
 } from '../services/gemini';
+import { getUserMemory } from '../services/agentMemoryService';
+import { speakHumanVoice, stopHumanVoice } from '../services/voiceService';
 import {
   Sparkles,
   Calendar,
@@ -25,6 +27,7 @@ import {
   Zap,
   Check,
   ChevronRight,
+  ChevronDown,
   Bot,
   Layers,
   ArrowRight,
@@ -34,8 +37,62 @@ import {
   Key,
   ExternalLink,
   ShieldCheck,
-  Lock
+  Lock,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Brain,
+  Wrench
 } from 'lucide-react';
+
+function renderFormattedMarkdown(text) {
+  if (!text) return null;
+  const lines = String(text).split('\n');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} style={{ height: 6 }} />;
+        }
+        const isBullet = trimmed.startsWith('•') || trimmed.startsWith('- ') || trimmed.startsWith('* ');
+        const isNumbered = /^\d+\.\s/.test(trimmed);
+        const cleanLine = (isBullet || isNumbered) ? trimmed.replace(/^([•\-\*]|\d+\.)\s*/, '') : trimmed;
+
+        // Parse **bold** parts
+        const parts = cleanLine.split(/(\*\*[^*]+\*\*)/g);
+        const parsedContent = parts.map((part, pIdx) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+              <strong key={pIdx} style={{ fontWeight: 700, color: 'inherit' }}>
+                {part.slice(2, -2)}
+              </strong>
+            );
+          }
+          return part;
+        });
+
+        if (isBullet || isNumbered) {
+          return (
+            <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, paddingLeft: 4 }}>
+              <span style={{ color: 'var(--primary, #6366f1)', fontWeight: 700, fontSize: '0.85rem', lineHeight: '1.4' }}>
+                {isNumbered ? trimmed.match(/^\d+\./)[0] : '•'}
+              </span>
+              <div style={{ flex: 1, lineHeight: 1.5 }}>{parsedContent}</div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={idx} style={{ lineHeight: 1.55 }}>
+            {parsedContent}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function AiPlannerModal({ onClose, onTasksCreated }) {
   const { lang } = useLanguage();
@@ -126,19 +183,104 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
     }
   };
 
-  // Assistant Chat State
+  // Assistant Chat State (Gemini 3.8 Flash & Autonomous Reasoning)
   const [chatMessages, setChatMessages] = useState([
     {
       id: 'msg_welcome',
       sender: 'ai',
       text: lang === 'bn'
-        ? 'নমস্কার! আমি আপনার Tasker Autonomous AI Agent 🤖।\n\nআপনি আমার সাথে স্বাভাবিকভাবে যেকোনো বিষয়ে কথা বলতে পারেন এবং আমাকে সফটওয়্যারের কাজ করতে বলতে পারেন—যেমন:\n• "বিকাল ৫টায় ক্লায়েন্ট মিটিং টাস্ক যুক্ত করো"\n• "আজকের কাজের তালিকা দেখাও"\n• "মিটিং টাস্ক ডান করো"\n\nআজ আপনাকে কীভাবে সাহায্য করতে পারি?'
-        : 'Hello! I am your Tasker Autonomous AI Agent 🤖.\n\nYou can chat with me naturally and command me to manage your tasks—such as:\n• "Add client meeting task at 5pm"\n• "Show my tasks for today"\n• "Mark meeting task as completed"\n\nHow can I help you today?'
+        ? 'নমস্কার! আমি আপনার **Tasker Autonomous AI Agent** 🤖 (Gemini 3.8 Flash)।\n\nআমি স্বয়ংক্রিয় চিন্তাভাবনা ও আপনার কাজের অভ্যাস মনে রেখে কাজ করি। আপনি স্বাভাবিকভাবে কথা বলতে পারেন কিংবা সফটওয়্যারের কাজ করতে বলতে পারেন:\n• *"কাল দুপুরে একটি ইকমার্স UI বানাতে হবে"* (লাঞ্চ টাইম বাদ দিয়ে শিডিউল করবে)\n• *"আজকের কাজের তালিকা দেখাও"*\n• *"মিটিং টাস্ক ডান করো"*\n\nআজ আপনাকে কীভাবে সহায়তা করতে পারি?'
+        : 'Hello! I am your **Tasker Autonomous AI Agent** 🤖 (Powered by Gemini 3.8 Flash).\n\nI operate with autonomous reasoning and persistent habit memory. You can chat naturally or command board actions:\n• *"Schedule Ecommerce UI Design tomorrow afternoon"*\n• *"Show my pending tasks for today"*\n• *"Mark meeting as completed"*\n\nHow can I help boost your productivity today?'
     }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [thinkingStep, setThinkingStep] = useState(0);
+  const [expandedThoughts, setExpandedThoughts] = useState({});
+  const [isListening, setIsListening] = useState(false);
+  const [speakingMsgId, setSpeakingMsgId] = useState(null);
   const chatBottomRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  // Dynamic animated thinking step indicator
+  useEffect(() => {
+    let interval = null;
+    if (chatLoading) {
+      interval = setInterval(() => {
+        setThinkingStep(prev => (prev + 1) % 3);
+      }, 1400);
+    } else {
+      setThinkingStep(0);
+    }
+    return () => clearInterval(interval);
+  }, [chatLoading]);
+
+  const toggleThought = (msgId) => {
+    setExpandedThoughts(prev => ({ ...prev, [msgId]: !prev[msgId] }));
+  };
+
+  const handleToggleVoiceInput = () => {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      alert(lang === 'bn' ? 'আপনার ব্রাউজারে স্পিচ রিকগনিশন সাপোর্ট নেই।' : 'Speech recognition not supported in this browser.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      try {
+        const recognition = new SpeechRec();
+        recognition.lang = lang === 'bn' ? 'bn-BD' : 'en-US';
+        recognition.interimResults = true;
+        recognition.continuous = false;
+
+        recognition.onstart = () => setIsListening(true);
+        recognition.onresult = (e) => {
+          const transcript = Array.from(e.results)
+            .map(r => r[0].transcript)
+            .join('');
+          setChatInput(transcript);
+        };
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+
+        recognitionRef.current = recognition;
+        recognition.start();
+      } catch (err) {
+        console.warn('Voice input error:', err);
+        setIsListening(false);
+      }
+    }
+  };
+
+  // High-Quality Human Voice Playback using voiceService (Gemini Voice: Kore)
+  const handleSpeakMessage = (msgId, text) => {
+    if (speakingMsgId === msgId) {
+      stopHumanVoice();
+      setSpeakingMsgId(null);
+      return;
+    }
+
+    setSpeakingMsgId(msgId);
+    speakHumanVoice({
+      text,
+      lang,
+      apiKey: getGeminiKey(userKey),
+      voiceName: 'Kore',
+      onStart: () => setSpeakingMsgId(msgId),
+      onEnd: () => setSpeakingMsgId(null),
+      onError: () => setSpeakingMsgId(null)
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      stopHumanVoice();
+      if (recognitionRef.current) recognitionRef.current.abort();
+    };
+  }, []);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -243,9 +385,9 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
     }
   };
 
-  // Autonomous Agent Chat Handler
+  // Autonomous Agent Chat Handler (Gemini 3.8 Flash & Antigravity Agent ReAct)
   const handleSendChat = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     const prompt = chatInput.trim();
     if (!prompt) return;
 
@@ -264,22 +406,32 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
         message: prompt,
         history: chatMessages,
         lang,
+        userKey,
         onTasksChanged: () => {
           if (typeof onTasksCreated === 'function') onTasksCreated();
         }
       });
 
-      const replyText = (res && (res.text || res.message))
-        ? String(res.text || res.message).trim()
+      const replyText = (res && (res.reply || res.text || res.message))
+        ? String(res.reply || res.text || res.message).trim()
         : (lang === 'bn' ? '✅ আপনার অনুরোধ অনুযায়ী কাজটি সম্পন্ন হয়েছে।' : '✅ Task action executed successfully.');
+
+      const newMsgId = 'msg_' + Date.now();
+      // Auto expand thoughts if available
+      if (res?.thoughts && res.thoughts.length > 0) {
+        setExpandedThoughts(prev => ({ ...prev, [newMsgId]: true }));
+      }
 
       setChatMessages(prev => [
         ...prev,
         {
-          id: 'msg_' + Date.now(),
+          id: newMsgId,
           sender: 'ai',
           text: replyText,
-          actionExecuted: res?.actionExecuted
+          thoughts: res?.thoughts || [],
+          tools: res?.tools || [],
+          actionExecuted: res?.actionExecuted,
+          learnedRule: res?.learnedRule
         }
       ]);
     } catch (err) {
@@ -309,6 +461,28 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
         }
       }}
     >
+      <style>{`
+        @keyframes wavePulse {
+          0%, 100% { height: 6px; opacity: 0.5; }
+          50% { height: 16px; opacity: 1; }
+        }
+        @keyframes shimmerGradient {
+          0% { background-position: 0% center; }
+          100% { background-position: 200% center; }
+        }
+        .tasker-wave-bar {
+          width: 3px;
+          height: 8px;
+          border-radius: 3px;
+          background: linear-gradient(180deg, #6366f1, #a855f7);
+          animation: wavePulse 1s ease-in-out infinite;
+          display: inline-block;
+        }
+        .bar-1 { animation-delay: 0ms; }
+        .bar-2 { animation-delay: 180ms; }
+        .bar-3 { animation-delay: 360ms; }
+        .bar-4 { animation-delay: 540ms; }
+      `}</style>
       <div
         className="modal-content"
         style={{
@@ -802,54 +976,331 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
           )}
 
           {activeTab === 'assistant' && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 380 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 400 }}>
+              {/* Context Memory & Learning Active Pill */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 12px',
+                  marginBottom: 10,
+                  borderRadius: 10,
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '1px solid rgba(99, 102, 241, 0.2)',
+                  fontSize: '0.76rem',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <Brain size={14} color="#6366f1" />
+                  <span>
+                    <strong>{lang === 'bn' ? 'কনটেক্সট মেমোরি ও লার্নিং সক্রিয়' : 'Context Memory & Habit Learning Active'}</strong>
+                    {' • '}
+                    {lang === 'bn' ? '১:৩০-২:৩০ লাঞ্চ টাইম ও ডিপ ফোকাস সংরক্ষিত' : 'Lunch break (1:30-2:30) & focus blocks respected'}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    color: '#6366f1',
+                    fontWeight: 700,
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    padding: '2px 7px',
+                    borderRadius: 6
+                  }}
+                >
+                  {modelLabel}
+                </span>
+              </div>
+
               {/* Chat Messages */}
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 16 }}>
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 16 }}>
                 {chatMessages.map((m) => (
                   <div
                     key={m.id}
                     style={{
                       alignSelf: m.sender === 'user' ? 'flex-end' : 'flex-start',
-                      maxWidth: '84%',
+                      maxWidth: m.sender === 'user' ? '82%' : '92%',
                       background: m.sender === 'user' ? 'var(--primary)' : 'var(--bg-input)',
                       color: m.sender === 'user' ? '#fff' : 'var(--text-main)',
                       padding: '12px 16px',
-                      borderRadius: 14,
+                      borderRadius: 16,
                       fontSize: '0.88rem',
                       lineHeight: 1.55,
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                      border: m.sender === 'user' ? 'none' : '1px solid var(--border-subtle)'
                     }}
                   >
-                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {typeof m.text === 'object'
-                        ? (m.text?.textResponse || JSON.stringify(m.text))
-                        : String(m.text || (lang === 'bn' ? '✅ কাজটি সফলভাবে প্রসেস করা হয়েছে।' : '✅ Action completed.'))}
-                    </div>
-
-                    {m.actionExecuted && (
+                    {/* Antigravity Thinking Process Block (Accordion) */}
+                    {m.sender === 'ai' && Array.isArray(m.thoughts) && m.thoughts.length > 0 && (
                       <div
                         style={{
-                          marginTop: 8,
-                          paddingTop: 6,
-                          borderTop: '1px solid rgba(255,255,255,0.1)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          fontSize: '0.73rem',
-                          color: '#10b981',
-                          fontWeight: 700
+                          marginBottom: 10,
+                          borderRadius: 8,
+                          border: '1px solid var(--border-subtle)',
+                          background: 'rgba(0,0,0,0.18)',
+                          overflow: 'hidden'
                         }}
                       >
-                        <Zap size={13} />
-                        <span>{lang === 'bn' ? 'সফটওয়্যার অ্যাকশন সম্পন্ন হয়েছে' : 'Executed on Tasker Board'}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleThought(m.id)}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '6px 10px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '0.74rem',
+                            color: 'var(--text-secondary)',
+                            fontWeight: 600
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Brain size={13} color="#818cf8" />
+                            <span>{lang === 'bn' ? 'চিন্তাভাবনা ও বিশ্লেষণ' : 'Thinking Process'}</span>
+                            <span
+                              style={{
+                                fontSize: '0.66rem',
+                                background: 'var(--bg-card)',
+                                padding: '1px 6px',
+                                borderRadius: 8,
+                                color: 'var(--text-muted)'
+                              }}
+                            >
+                              {m.thoughts.length} {lang === 'bn' ? 'ধাপ' : 'steps'}
+                            </span>
+                          </div>
+                          {expandedThoughts[m.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+
+                        {expandedThoughts[m.id] && (
+                          <div
+                            style={{
+                              padding: '8px 12px',
+                              borderTop: '1px solid var(--border-subtle)',
+                              fontSize: '0.73rem',
+                              color: 'var(--text-secondary)',
+                              lineHeight: 1.55,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 5
+                            }}
+                          >
+                            {m.thoughts.map((step, sIdx) => (
+                              <div key={sIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                                <span style={{ color: '#818cf8', fontWeight: 700 }}>•</span>
+                                <span>{step}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Board Action Execution Badges */}
+                    {m.sender === 'ai' && Array.isArray(m.tools) && m.tools.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                        {m.tools.map((t, tIdx) => (
+                          <div
+                            key={tIdx}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '6px 10px',
+                              borderRadius: 8,
+                              background: 'rgba(16, 185, 129, 0.08)',
+                              border: '1px solid rgba(16, 185, 129, 0.25)',
+                              fontSize: '0.74rem'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Wrench size={13} color="#10b981" />
+                              <span style={{ fontWeight: 700, color: '#10b981' }}>
+                                {t.tool || t.name}
+                              </span>
+                              <span style={{ color: 'var(--text-secondary)' }}>
+                                {t.message || (t.params?.title ? `"${t.params.title}"` : '')}
+                              </span>
+                            </div>
+                            <span
+                              style={{
+                                fontSize: '0.66rem',
+                                fontWeight: 700,
+                                color: t.status === 'success' ? '#10b981' : '#ef4444',
+                                background: t.status === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                padding: '2px 6px',
+                                borderRadius: 4
+                              }}
+                            >
+                              {t.status === 'success' ? (lang === 'bn' ? '✅ সম্পন্ন' : '✅ Success') : '❌ Failed'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Formatted Markdown Content */}
+                    <div style={{ wordBreak: 'break-word' }}>
+                      {typeof m.text === 'object'
+                        ? (m.text?.textResponse || JSON.stringify(m.text))
+                        : renderFormattedMarkdown(m.text || (lang === 'bn' ? '✅ কাজটি সম্পন্ন হয়েছে।' : '✅ Action completed.'))}
+                    </div>
+
+                    {/* Footer Actions (Natural Human Voice Playback & Learned Habit Badge) */}
+                    {m.sender === 'ai' && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginTop: 8,
+                          paddingTop: 6,
+                          borderTop: '1px solid var(--border-subtle)'
+                        }}
+                      >
+                        {m.learnedRule ? (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: '0.7rem',
+                              color: '#eab308',
+                              background: 'rgba(234, 179, 8, 0.12)',
+                              padding: '2px 7px',
+                              borderRadius: 6
+                            }}
+                          >
+                            <span>💡 {lang === 'bn' ? 'নতুন নিয়ম সংরক্ষিত' : 'Rule Learned'}</span>
+                          </div>
+                        ) : <div />}
+
+                        <button
+                          type="button"
+                          onClick={() => handleSpeakMessage(m.id, m.text)}
+                          className="btn-ghost"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontSize: '0.74rem',
+                            padding: '4px 10px',
+                            borderRadius: 8,
+                            background: speakingMsgId === m.id ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                            color: speakingMsgId === m.id ? '#6366f1' : 'var(--text-muted)',
+                            border: speakingMsgId === m.id ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid transparent',
+                            cursor: 'pointer'
+                          }}
+                          title={lang === 'bn' ? 'অফিসিয়াল Gemini Voice (Kore) দিয়ে শুনুন' : 'Listen with Official Gemini Voice (Kore)'}
+                        >
+                          {speakingMsgId === m.id ? (
+                            <>
+                              <VolumeX size={14} color="#6366f1" />
+                              <span style={{ color: '#6366f1', fontWeight: 700 }}>{lang === 'bn' ? 'থামুন' : 'Stop'}</span>
+                              <div style={{ display: 'flex', gap: 2, alignItems: 'center', height: 12 }}>
+                                <span className="tasker-wave-bar bar-1" />
+                                <span className="tasker-wave-bar bar-2" />
+                                <span className="tasker-wave-bar bar-3" />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 size={14} />
+                              <span>{lang === 'bn' ? 'Gemini Voice' : 'Gemini Voice'}</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                     )}
                   </div>
                 ))}
+
+                {/* Animated Dynamic Thinking Process Indicator */}
                 {chatLoading && (
-                  <div style={{ alignSelf: 'flex-start', background: 'var(--bg-input)', padding: '10px 14px', borderRadius: 14, fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <RefreshCw size={13} style={{ animation: 'spin 1.2s linear infinite' }} />
-                    <span>{lang === 'bn' ? 'AI এজেন্ট ভাবছে...' : 'AI Agent thinking & executing...'}</span>
+                  <div
+                    style={{
+                      alignSelf: 'flex-start',
+                      maxWidth: '88%',
+                      background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.08))',
+                      border: '1px solid rgba(99, 102, 241, 0.25)',
+                      padding: '12px 16px',
+                      borderRadius: 16,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      boxShadow: '0 4px 18px rgba(99, 102, 241, 0.08)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 8,
+                          background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 0 12px rgba(99, 102, 241, 0.5)'
+                        }}
+                      >
+                        <Sparkles size={14} color="#fff" />
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 16 }}>
+                        <span className="tasker-wave-bar bar-1" />
+                        <span className="tasker-wave-bar bar-2" />
+                        <span className="tasker-wave-bar bar-3" />
+                        <span className="tasker-wave-bar bar-4" />
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: '0.86rem',
+                          fontWeight: 700,
+                          background: 'linear-gradient(90deg, #6366f1, #a855f7, #6366f1)',
+                          backgroundSize: '200% auto',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          animation: 'shimmerGradient 2.5s linear infinite'
+                        }}
+                      >
+                        {lang === 'bn' ? 'Gemini 3.8 Flash চিন্তা করছে...' : 'Gemini 3.8 Flash is thinking...'}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        paddingLeft: 36,
+                        fontSize: '0.76rem',
+                        color: 'var(--text-secondary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <span style={{ color: '#a855f7' }}>✦</span>
+                      <span>
+                        {lang === 'bn'
+                          ? [
+                              'কাজের শিডিউল ও অভ্যাস বিশ্লেষণ করা হচ্ছে...',
+                              'বোর্ডের টাস্ক ও সময়ের সমন্বয় পরীক্ষা করা হচ্ছে...',
+                              'সবচেয়ে ভালো পরিকল্পনা প্রস্তুত করা হচ্ছে...'
+                            ][thinkingStep]
+                          : [
+                              'Analyzing your task schedule & focus habits...',
+                              'Checking board conflicts & optimal time slots...',
+                              'Synthesizing intelligent plan & response...'
+                            ][thinkingStep]
+                        }
+                      </span>
+                    </div>
                   </div>
                 )}
                 <div ref={chatBottomRef} />
@@ -858,9 +1309,9 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
               {/* Quick Action Suggestion Chips */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '6px 0', borderTop: '1px solid var(--border-subtle)' }}>
                 {[
-                  lang === 'bn' ? '📋 আজকের কাজের তালিকা দেখাও' : '📋 Show my tasks',
-                  lang === 'bn' ? '➕ বিকাল ৫টায় জিম টাস্ক যুক্ত করো' : '➕ Add gym task at 5pm',
-                  lang === 'bn' ? '💡 কাজের গতি বাড়ানোর টিপস দাও' : '💡 Productivity tips'
+                  lang === 'bn' ? '📋 আজকের কাজের তালিকা দেখাও' : '📋 Show my tasks for today',
+                  lang === 'bn' ? '➕ কাল বিকালে ইকমার্স UI ডিজাইন যুক্ত করো' : '➕ Add Ecommerce UI design tomorrow afternoon',
+                  lang === 'bn' ? '🧠 আমার ডিপ ফোকাস ও লাঞ্চ অনুযায়ী শিডিউল সাজাও' : '🧠 Optimize schedule for deep focus & lunch break'
                 ].map((chip, idx) => (
                   <button
                     key={idx}
@@ -883,16 +1334,55 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                 ))}
               </div>
 
-              {/* Chat Input */}
-              <form onSubmit={handleSendChat} style={{ display: 'flex', gap: 10, marginTop: 4, paddingTop: 6 }}>
+              {/* Chat Input with Speech-to-Text Mic */}
+              <form onSubmit={handleSendChat} style={{ display: 'flex', gap: 8, marginTop: 4, paddingTop: 6, alignItems: 'center' }}>
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder={lang === 'bn' ? 'কথা বলুন বা নির্দেশ দিন (যেমন: "আজকের কাজের তালিকা দেখাও")...' : 'Chat or command agent (e.g. "Add client meeting at 4pm")...'}
-                  style={{ flex: 1, padding: '10px 14px', fontSize: '0.9rem', borderRadius: 10 }}
+                  placeholder={
+                    isListening
+                      ? (lang === 'bn' ? '🎙️ আপনার কথা শুনছি, বলুন...' : '🎙️ Listening to your voice, speak now...')
+                      : (lang === 'bn' ? 'কথা বলুন বা নির্দেশ দিন (যেমন: "কাল বিকালে ইকমার্স UI বানাতে হবে")...' : 'Chat or command agent (e.g. "Add client meeting tomorrow at 4pm")...')
+                  }
+                  style={{
+                    flex: 1,
+                    padding: '10px 14px',
+                    fontSize: '0.9rem',
+                    borderRadius: 10,
+                    borderColor: isListening ? '#ef4444' : undefined,
+                    boxShadow: isListening ? '0 0 0 2px rgba(239, 68, 68, 0.25)' : undefined
+                  }}
                 />
-                <button type="submit" disabled={chatLoading || !chatInput.trim()} className="btn btn-primary" style={{ padding: '0 16px' }}>
+
+                {/* Voice Input Button */}
+                <button
+                  type="button"
+                  onClick={handleToggleVoiceInput}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    color: isListening ? '#ef4444' : 'var(--text-main)',
+                    background: isListening ? 'rgba(239, 68, 68, 0.15)' : 'var(--bg-input)',
+                    border: isListening ? '1px solid #ef4444' : '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                  title={isListening ? (lang === 'bn' ? 'রেকর্ডিং বন্ধ করুন' : 'Stop voice recording') : (lang === 'bn' ? 'মুখে বলুন (Voice Input)' : 'Speak via voice')}
+                >
+                  {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                </button>
+
+                {/* Send Button */}
+                <button
+                  type="submit"
+                  disabled={chatLoading || !chatInput.trim()}
+                  className="btn btn-primary"
+                  style={{ padding: '10px 18px', borderRadius: 10 }}
+                >
                   <Send size={16} />
                 </button>
               </form>
