@@ -50,10 +50,14 @@
 ### 📱 7. Mobile Experience & Android App Enhancements
 - **Official App Icon**: Custom brand launcher icon generated across all mipmap density buckets (mdpi to xxxhdpi) replacing the default template logo.
 - **Harmful App / Play Protect Warning Resolution**: Signed with an official release keystore and configured `debuggable=false`, eliminating installation security warnings.
+- **Compact Mobile Calendar View**: Calendar grid compacted vertically on mobile screens with selected date's full task list rendered underneath, eliminating horizontal scrolling.
+- **Mobile Client Dictionary**: Selected Client details card pinned to the top; Client Roster list placed below it with live search bar, `+ Add Client` button, and in-row Edit popup modal and Delete.
+- **Mobile Task Directory**: Workspace switchers optimized for small screens; Add Task Type card on top, Task Types list below with in-row Edit popup modal and Delete.
+- **Task Modal Enhancements**: Removed visible scrollbars (`no-scrollbar`), replaced voice input button with a sleek circular microphone icon button (text removed), and fixed mobile touch/click audio recording events.
+- **Universal Local File & Media Lightbox Viewer**: View attachments with zoom-in (+), zoom-out (-), reset, pan/drag for images; full video player with standard playback controls for videos; one-click local download for any attachment. 100% on-device local storage.
+- **Global Community Chat Persistence**: Real-time 3-day history with 0ms optimistic message and voice note sending and local cache.
 - **Collapsible Slide-over Drawer**: Sidebar converts to an intuitive hamburger slide-over menu on mobile screens that is closed by default, freeing up 100% of viewport width.
 - **Mobile Kanban Tab Switcher**: Multi-column board shifts dynamically on mobile devices into a swipeable tab switcher (`To Do`, `In Progress`, `Submit for Review`, `Approved/Done`), rendering each column at 100% full width without horizontal scrolling.
-- **Top Bar De-cluttering**: Compact header on mobile screens with Quick User Profile and AI Planner launcher neatly integrated into the drawer header.
-- **Community Chat Responsiveness**: Chat interface now expands seamlessly to fill full viewport height and width on mobile devices.
 
 ---
 
@@ -80,5 +84,5 @@ SHA-256: 62FF6766FED7EE3C7A3B406146648FA00AF89BD563E633EFDA036E1F09DDFC23
 
 File: Tasker.apk
 Target: Android (Universal ARM64 / x86_64, Signed Release)
-SHA-256: 3B95CCDCD54E3AE0ECD21A31CC7E37D7575428717F27EC01BD35EBE01AEDFB43
+SHA-256: 150B92758CA5E54E3111B014E0BF1826A6EA198396337D055FDE5CA4D68F9DB4
 ```

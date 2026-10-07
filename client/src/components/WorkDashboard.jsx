@@ -26,6 +26,7 @@ import {
   Users,
   X
 } from 'lucide-react';
+import MediaViewerModal from './MediaViewerModal';
 
 export default function WorkDashboard({
   tasks,
@@ -49,6 +50,10 @@ export default function WorkDashboard({
   const [taskTypes, setTaskTypes] = useState([]);
   const [teams, setTeams] = useState([]);
   const [selectedTeamId, setSelectedTeamId] = useState(() => teamApi.getActiveTeamId());
+
+  // Universal Media Viewer Modal State
+  const [previewFile, setPreviewFile] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Listen for real-time task updates
   useEffect(() => {
@@ -762,9 +767,33 @@ export default function WorkDashboard({
                           )}
 
                           {taskItem.localFileAttachments?.length > 0 && (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                              <Paperclip size={12} /> {taskItem.localFileAttachments.length}
-                            </span>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                              {taskItem.localFileAttachments.map((fItem, fIdx) => (
+                                <button
+                                  key={fIdx}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewFile(fItem);
+                                    setIsPreviewOpen(true);
+                                  }}
+                                  className="badge badge-todo"
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    textTransform: 'none',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    padding: '2px 6px'
+                                  }}
+                                  title="View or download attachment"
+                                >
+                                  <Paperclip size={11} />
+                                  {fItem.name || fItem.fileName || `File ${fIdx + 1}`}
+                                </button>
+                              ))}
+                            </div>
                           )}
                         </div>
 
@@ -910,6 +939,35 @@ export default function WorkDashboard({
                           {taskItem.brief}
                         </p>
                       )}
+                      {taskItem.localFileAttachments?.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                          {taskItem.localFileAttachments.map((fItem, fIdx) => (
+                            <button
+                              key={fIdx}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewFile(fItem);
+                                setIsPreviewOpen(true);
+                              }}
+                              className="badge badge-todo"
+                              style={{
+                                fontSize: '0.65rem',
+                                textTransform: 'none',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                padding: '1px 5px'
+                              }}
+                              title="View or download attachment"
+                            >
+                              <Paperclip size={10} />
+                              {fItem.name || fItem.fileName || `File ${fIdx + 1}`}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
@@ -1035,6 +1093,13 @@ export default function WorkDashboard({
           </div>
         </div>
       )}
+
+      {/* Universal Media & Attachment Lightbox Viewer */}
+      <MediaViewerModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        file={previewFile}
+      />
     </div>
   );
 }

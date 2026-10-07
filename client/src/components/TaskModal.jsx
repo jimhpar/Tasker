@@ -20,6 +20,8 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import MediaViewerModal from './MediaViewerModal';
+
 export default function TaskModal({
   isOpen,
   onClose,
@@ -49,12 +51,17 @@ export default function TaskModal({
   const [dueDate, setDueDate] = useState('');
   const [localFiles, setLocalFiles] = useState([]);
 
-  // Voice recording (Press & Hold or Click to Record)
+  // Media preview modal state
+  const [previewFile, setPreviewFile] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // Voice recording (Press & Hold or Tap to Record)
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [dragStartX, setDragStartX] = useState(null);
   const [cancelSlideTriggered, setCancelSlideTriggered] = useState(false);
+  const touchHandledRef = useRef(false);
 
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
@@ -225,15 +232,40 @@ export default function TaskModal({
     stopRecording(false);
   };
 
-  // Press & Hold Handlers
+  // Press & Hold and Touch Handlers
   const handleMouseDown = (e) => {
-    setDragStartX(e.clientX || e.touches?.[0]?.clientX);
+    setDragStartX(e.clientX);
     startRecording();
   };
 
   const handleMouseUp = () => {
     if (isRecording) {
       stopRecording(!cancelSlideTriggered);
+    }
+  };
+
+  const handleTouchStart = (e) => {
+    touchHandledRef.current = true;
+    setDragStartX(e.touches?.[0]?.clientX);
+    startRecording();
+  };
+
+  const handleTouchEnd = (e) => {
+    e.preventDefault();
+    if (isRecording) {
+      stopRecording(!cancelSlideTriggered);
+    }
+    setTimeout(() => {
+      touchHandledRef.current = false;
+    }, 300);
+  };
+
+  const handleClickMic = () => {
+    if (touchHandledRef.current) return;
+    if (isRecording) {
+      stopRecording(true);
+    } else {
+      startRecording();
     }
   };
 
@@ -245,17 +277,35 @@ export default function TaskModal({
     }
   };
 
-  // Local file attachment
+  // Local file attachment with Data URL conversion for local viewing and downloads
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
-    const newAttachments = files.map(f => ({
-      fileName: f.name,
-      fileSize: f.size,
-      fileType: f.type,
-      localPath: `C:/TaskerFiles/${f.name}`
-    }));
-    setLocalFiles(prev => [...prev, ...newAttachments]);
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const item = {
+          name: file.name,
+          fileName: file.name,
+          size: file.size,
+          fileSize: file.size,
+          type: file.type,
+          fileType: file.type,
+          dataUrl: event.target.result,
+        };
+        setLocalFiles((prev) => [...prev, item]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveFile = (index) => {
+    setLocalFiles((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleOpenFileModal = (file) => {
+    setPreviewFile(file);
+    setIsPreviewOpen(true);
   };
 
   const handleSubmit = async (e) => {
@@ -319,7 +369,7 @@ export default function TaskModal({
         }
       }}
     >
-      <div className="modal-content" style={{ maxWidth: 580 }}>
+      <div className="modal-content no-scrollbar" style={{ maxWidth: 580, maxHeight: '92vh', overflowY: 'auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>
@@ -588,9 +638,38 @@ export default function TaskModal({
             {localFiles.length > 0 && (
               <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {localFiles.map((f, i) => (
-                  <span key={i} className="badge badge-todo" style={{ fontSize: '0.75rem', textTransform: 'none' }}>
-                    📎 {f.fileName} ({(f.fileSize / 1024).toFixed(1)} KB)
-                  </span>
+                  <div
+                    key={i}
+                    className="badge badge-todo"
+                    style={{
+                      fontSize: '0.75rem',
+                      textTransform: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '4px 8px'
+                    }}
+                  >
+                    <span
+                      onClick={() => handleOpenFileModal(f)}
+                      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                      title="Click to view or download"
+                    >
+                      📎 {f.name || f.fileName} ({((f.size || f.fileSize || 0) / 1024).toFixed(1)} KB)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFile(i);
+                      }}
+                      className="btn-ghost"
+                      style={{ padding: 1, color: 'var(--danger)', borderRadius: '50%' }}
+                      title="Remove file"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -644,49 +723,38 @@ export default function TaskModal({
               marginTop: 4
             }}
           >
-            {/* WhatsApp-Style Voice Record Button in Bottom-Left Corner */}
+            {/* Circular Voice Record Button (Icon Only, No text) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button
                 type="button"
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}
-                onTouchStart={handleMouseDown}
-                onTouchEnd={handleMouseUp}
-                onMouseMove={handleMouseMove}
-                onTouchMove={handleMouseMove}
-                onClick={() => {
-                  if (isRecording) {
-                    stopRecording(true);
-                  } else {
-                    startRecording();
-                  }
-                }}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                onClick={handleClickMic}
                 className={`btn ${isRecording ? 'btn-danger' : 'btn-secondary'}`}
                 style={{
-                  borderRadius: 'var(--radius-full)',
-                  padding: '8px 14px',
-                  fontSize: '0.82rem',
-                  display: 'inline-flex',
+                  width: 42,
+                  height: 42,
+                  borderRadius: '50%',
+                  padding: 0,
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
-                  boxShadow: isRecording ? '0 0 16px rgba(239,68,68,0.4)' : 'none',
-                  userSelect: 'none'
+                  justifyContent: 'center',
+                  boxShadow: isRecording ? '0 0 16px rgba(239,68,68,0.55)' : 'none',
+                  border: isRecording ? '2px solid var(--danger)' : '1px solid var(--border-subtle)',
+                  animation: isRecording ? 'pulse 1.2s infinite' : 'none',
+                  flexShrink: 0
                 }}
-                title={lang === 'bn' ? 'ক্লিক বা চেপে ধরে কথা বলুন' : 'Click or hold to speak'}
+                title={lang === 'bn' ? 'ট্যাপ বা চেপে ধরে কথা বলুন' : 'Tap or hold to speak'}
               >
-                {isRecording ? <MicOff size={16} /> : <Mic size={16} color="var(--primary)" />}
-                <span style={{ fontWeight: 600 }}>
-                  {isRecording
-                    ? (cancelSlideTriggered ? (lang === 'bn' ? 'বাতিল' : 'Cancel') : formatSec(recordingSeconds))
-                    : t.voiceHoldText}
-                </span>
+                {isRecording ? <MicOff size={20} /> : <Mic size={20} color="var(--primary)" />}
               </button>
-
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                {isRecording
-                  ? (lang === 'bn' ? '← বামে টানলে বাতিল' : '← Slide left to cancel')
-                  : (lang === 'bn' ? 'ভয়েস ইনপুট' : 'Voice input')}
-              </span>
+              {isRecording && (
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--danger)', fontFamily: 'var(--font-code)' }}>
+                  {formatSec(recordingSeconds)}
+                </span>
+              )}
             </div>
 
             {/* Cancel & Save Action Buttons */}
@@ -704,6 +772,13 @@ export default function TaskModal({
           </div>
         </form>
       </div>
+
+      {/* Universal Media & Attachment Lightbox Viewer */}
+      <MediaViewerModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        file={previewFile}
+      />
     </div>
   );
 }

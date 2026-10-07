@@ -592,10 +592,84 @@ body.theme-gray .btn-primary {
     z-index: 99999 !important;
     box-sizing: border-box !important;
   }
+
+  /* Compact Mobile Calendar View: Calendar Top, Selected Date Details Below */
+  .calendar-responsive-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+  .calendar-day-cell {
+    min-height: 44px !important;
+    height: auto !important;
+    padding: 4px 3px !important;
+  }
+  .calendar-day-cell span {
+    font-size: 0.76rem !important;
+  }
+
+  /* Mobile Client Dictionary Layout: Selected Client on Top, Roster List Below */
+  .client-dictionary-responsive-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+  .client-details-card {
+    order: 1 !important;
+  }
+  .client-roster-card {
+    order: 2 !important;
+  }
+
+  /* Mobile Task Directory Layout: Add Card on Top, Types List Below */
+  .task-directory-responsive-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+  .task-create-card {
+    order: 1 !important;
+  }
+  .task-list-card {
+    order: 2 !important;
+  }
 }
 
 @media (min-width: 769px) {
   .kanban-column.mobile-hidden-column {
     display: flex !important;
   }
+  .calendar-responsive-grid {
+    display: grid !important;
+    grid-template-columns: minmax(320px, 1.8fr) minmax(280px, 1.2fr) !important;
+  }
+  .client-dictionary-responsive-grid {
+    display: grid !important;
+    grid-template-columns: minmax(280px, 1fr) minmax(340px, 1.4fr) !important;
+  }
+  .client-roster-card {
+    order: 1 !important;
+  }
+  .client-details-card {
+    order: 2 !important;
+  }
+  .task-directory-responsive-grid {
+    display: grid !important;
+    grid-template-columns: minmax(300px, 1fr) minmax(360px, 1.4fr) !important;
+  }
+  .task-create-card {
+    order: 1 !important;
+  }
+  .task-list-card {
+    order: 2 !important;
+  }
+}
+
+/* No-scrollbar Utility Class */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
 }

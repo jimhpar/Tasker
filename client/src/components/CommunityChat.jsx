@@ -22,7 +22,17 @@ export default function CommunityChat() {
   const { user } = useAuth();
   const { lang } = useLanguage();
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const cached = localStorage.getItem('tasker_community_cached_messages');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+        return parsed.filter(m => new Date(m.createdAt || m.timestamp || Date.now()).getTime() >= threeDaysAgo);
+      }
+    } catch {}
+    return [];
+  });
   const [inputText, setInputText] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -74,9 +84,24 @@ export default function CommunityChat() {
   const loadCommunityMessages = async () => {
     try {
       const data = await communityApi.getMessages();
-      setMessages(data || []);
+      if (Array.isArray(data)) {
+        const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+        const valid = data.filter(m => new Date(m.createdAt || m.timestamp || Date.now()).getTime() >= threeDaysAgo);
+        setMessages(valid);
+        try {
+          localStorage.setItem('tasker_community_cached_messages', JSON.stringify(valid.slice(-100)));
+        } catch {}
+      }
     } catch (e) {
-      console.error(e);
+      console.warn('Network error loading community messages, using local cache:', e);
+      try {
+        const cached = localStorage.getItem('tasker_community_cached_messages');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+          setMessages(parsed.filter(m => new Date(m.createdAt || m.timestamp || Date.now()).getTime() >= threeDaysAgo));
+        }
+      } catch {}
     }
   };
 
@@ -103,25 +128,57 @@ export default function CommunityChat() {
       } catch {}
     }
 
-    const payload = {
-      content: inputText.trim(),
+    const tempId = 'temp_' + Date.now();
+    const sentText = inputText.trim();
+    const currentReplying = replyingTo;
+
+    const optimisticMsg = {
+      _id: tempId,
+      senderId: user?._id || user?.id || 'me',
+      senderUsername: user?.username || user?.fullName || 'You',
+      senderRole: user?.role || 'Member',
+      content: sentText,
       isMediaP2P: false,
-      replyTo: replyingTo ? { id: replyingTo._id, sender: replyingTo.senderUsername, text: replyingTo.content } : null
+      replyTo: currentReplying ? { id: currentReplying._id, sender: currentReplying.senderUsername, text: currentReplying.content } : null,
+      createdAt: new Date().toISOString()
     };
+
+    // 0ms instant optimistic addition
+    setMessages((prev) => {
+      const next = [...prev, optimisticMsg];
+      try {
+        localStorage.setItem('tasker_community_cached_messages', JSON.stringify(next.slice(-100)));
+      } catch {}
+      return next;
+    });
 
     setInputText('');
     setReplyingTo(null);
     setShowEmojiPicker(false);
 
+    const payload = {
+      content: sentText,
+      isMediaP2P: false,
+      replyTo: currentReplying ? { id: currentReplying._id, sender: currentReplying.senderUsername, text: currentReplying.content } : null
+    };
+
     try {
       const newMsg = await communityApi.sendMessage(payload);
-      if (payload.replyTo) {
-        newMsg.replyTo = payload.replyTo;
+      if (newMsg && newMsg._id) {
+        if (payload.replyTo) {
+          newMsg.replyTo = payload.replyTo;
+        }
+        setMessages((prev) => {
+          const updated = prev.map((m) => (m._id === tempId ? newMsg : m));
+          try {
+            localStorage.setItem('tasker_community_cached_messages', JSON.stringify(updated.slice(-100)));
+          } catch {}
+          return updated;
+        });
       }
-      setMessages((prev) => [...prev, newMsg]);
       notifyDataChanged('community_chat');
     } catch (e) {
-      console.error(e);
+      console.warn('Backend message save fallback:', e);
     }
   };
 
@@ -176,6 +233,27 @@ export default function CommunityChat() {
       } catch {}
     }
 
+    const tempId = 'temp_voice_' + Date.now();
+    const optimisticVoice = {
+      _id: tempId,
+      senderId: user?._id || user?.id || 'me',
+      senderUsername: user?.username || user?.fullName || 'You',
+      senderRole: user?.role || 'Member',
+      content: '🎤 ভয়েস বার্তা (Voice Note)',
+      audioData: base64Audio,
+      isMediaP2P: false,
+      replyTo: replyingTo ? { id: replyingTo._id, sender: replyingTo.senderUsername, text: replyingTo.content } : null,
+      createdAt: new Date().toISOString()
+    };
+
+    setMessages((prev) => {
+      const next = [...prev, optimisticVoice];
+      try {
+        localStorage.setItem('tasker_community_cached_messages', JSON.stringify(next.slice(-100)));
+      } catch {}
+      return next;
+    });
+
     const payload = {
       content: '🎤 ভয়েস বার্তা (Voice Note)',
       audioData: base64Audio,
@@ -186,11 +264,19 @@ export default function CommunityChat() {
     setReplyingTo(null);
     try {
       const newMsg = await communityApi.sendMessage(payload);
-      newMsg.audioData = base64Audio;
-      setMessages((prev) => [...prev, newMsg]);
+      if (newMsg && newMsg._id) {
+        newMsg.audioData = base64Audio;
+        setMessages((prev) => {
+          const updated = prev.map((m) => (m._id === tempId ? newMsg : m));
+          try {
+            localStorage.setItem('tasker_community_cached_messages', JSON.stringify(updated.slice(-100)));
+          } catch {}
+          return updated;
+        });
+      }
       notifyDataChanged('community_chat');
     } catch (e) {
-      console.error(e);
+      console.warn('Backend voice note save fallback:', e);
     }
   };
 

@@ -37,4 +37,10 @@ const messageSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Automatically expire global Community messages after 3 days (259200 seconds)
+messageSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 259200, partialFilterExpression: { channelType: 'Community' } }
+);
+
 export default mongoose.model('Message', messageSchema);

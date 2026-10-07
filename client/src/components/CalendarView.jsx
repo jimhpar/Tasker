@@ -13,14 +13,18 @@ import {
   Tag,
   Building,
   ExternalLink,
-  Edit3
+  Edit3,
+  Paperclip
 } from 'lucide-react';
+import MediaViewerModal from './MediaViewerModal';
 
 export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate, onEditTask }) {
   const { t, lang } = useLanguage();
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [previewFile, setPreviewFile] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -181,8 +185,8 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
         </div>
       </div>
 
-      {/* Main Grid: Calendar on Left, Selected Date Details on Right */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.8fr) minmax(280px, 1.2fr)', gap: 20, alignItems: 'start' }}>
+      {/* Main Grid: Calendar on Left, Selected Date Details on Right (Stacked on Mobile) */}
+      <div className="calendar-responsive-grid" style={{ display: 'grid', gap: 20, alignItems: 'start' }}>
         {/* Calendar Month Grid Card */}
         <div className="card" style={{ padding: 18 }}>
           {/* Day Names Row */}
@@ -203,11 +207,10 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
               return (
                 <div
                   key={`prev-${i}`}
+                  className="calendar-day-cell opacity-30"
                   style={{
-                    height: 72,
                     padding: 6,
                     borderRadius: 10,
-                    opacity: 0.3,
                     background: 'var(--bg-input)',
                     fontSize: '0.8rem'
                   }}
@@ -231,8 +234,8 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
                 <div
                   key={`day-${dayNum}`}
                   onClick={() => setSelectedDate(dateObj)}
+                  className={`calendar-day-cell ${isSelected ? 'selected' : ''}`}
                   style={{
-                    minHeight: 74,
                     padding: '8px 6px',
                     borderRadius: 12,
                     background: isSelected ? 'var(--primary-glow)' : 'var(--bg-input)',
@@ -383,9 +386,33 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
                         )}
 
                         {taskItem.localFileAttachments?.length > 0 && (
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            📎 {taskItem.localFileAttachments.length} {lang === 'bn' ? 'ফাইল' : 'files'}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            {taskItem.localFileAttachments.map((fileItem, fIdx) => (
+                              <button
+                                key={fIdx}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreviewFile(fileItem);
+                                  setIsPreviewOpen(true);
+                                }}
+                                className="badge badge-todo"
+                                style={{
+                                  fontSize: '0.72rem',
+                                  textTransform: 'none',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '2px 7px'
+                                }}
+                                title="Click to view or download attachment"
+                              >
+                                <Paperclip size={12} />
+                                {fileItem.name || fileItem.fileName || `File ${fIdx + 1}`}
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -407,6 +434,13 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
           )}
         </div>
       </div>
+
+      {/* Universal Media & Attachment Lightbox Viewer */}
+      <MediaViewerModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        file={previewFile}
+      />
     </div>
   );
 }

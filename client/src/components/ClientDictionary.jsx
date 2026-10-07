@@ -42,6 +42,7 @@ export default function ClientDictionary({ onTasksUpdated }) {
   const [peopleSearch, setPeopleSearch] = useState('');
   const [taggedPerson, setTaggedPerson] = useState(null);
   const [clientToDelete, setClientToDelete] = useState(null);
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
 
   useEffect(() => {
     loadClients();
@@ -194,6 +195,18 @@ export default function ClientDictionary({ onTasksUpdated }) {
     );
   });
 
+  const filteredClients = clients.filter((c) => {
+    if (!clientSearchQuery.trim()) return true;
+    const q = clientSearchQuery.toLowerCase();
+    return (
+      (c.name && c.name.toLowerCase().includes(q)) ||
+      (c.company && c.company.toLowerCase().includes(q)) ||
+      (c.contactPerson && c.contactPerson.toLowerCase().includes(q)) ||
+      (c.email && c.email.toLowerCase().includes(q)) ||
+      (c.phone && c.phone.toLowerCase().includes(q))
+    );
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header */}
@@ -210,21 +223,42 @@ export default function ClientDictionary({ onTasksUpdated }) {
         </button>
       </div>
 
-      {/* Main Grid: Client List on Left, Selected Client Details & Linked Tasks on Right */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(340px, 1.4fr)', gap: 20 }}>
-        {/* Client Roster List */}
-        <div className="card" style={{ padding: 16 }}>
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 12, color: 'var(--text-muted)' }}>
-            {t.clientListTitle} ({clients.length})
-          </h3>
+      {/* Main Grid: On Mobile: Selected Client Top, Roster Below. On Desktop: Roster Left, Details Right */}
+      <div className="client-dictionary-responsive-grid" style={{ display: 'grid', gap: 20 }}>
+        {/* Client Roster List Card */}
+        <div className="card client-roster-card" style={{ padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+              {t.clientListTitle} ({filteredClients.length})
+            </h3>
+            <button
+              onClick={() => handleOpenModal()}
+              className="btn btn-primary"
+              style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <Plus size={14} /> {t.addClientBtn}
+            </button>
+          </div>
+
+          {/* Search Box */}
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder={lang === 'bn' ? 'ক্লায়েন্ট বা কোম্পানির নাম খুঁজুন...' : 'Search client, company, person...'}
+              value={clientSearchQuery}
+              onChange={(e) => setClientSearchQuery(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px 8px 32px', fontSize: '0.85rem' }}
+            />
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 520, overflowY: 'auto' }}>
-            {clients.length === 0 ? (
+            {filteredClients.length === 0 ? (
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', padding: 20, textAlign: 'center' }}>
-                {t.noClientsYet}
+                {clientSearchQuery ? (lang === 'bn' ? 'কোন ক্লায়েন্ট পাওয়া যায়নি' : 'No clients found') : t.noClientsYet}
               </p>
             ) : (
-              clients.map((client) => {
+              filteredClients.map((client) => {
                 const isSelected = selectedClient?._id === client._id;
                 return (
                   <div
@@ -255,14 +289,16 @@ export default function ClientDictionary({ onTasksUpdated }) {
                       <button
                         onClick={(e) => { e.stopPropagation(); handleOpenModal(client); }}
                         className="btn-ghost"
-                        style={{ padding: 4 }}
+                        style={{ padding: 6, borderRadius: 6 }}
+                        title="Edit client info"
                       >
                         <Edit2 size={14} />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteClient(client); }}
                         className="btn-ghost"
-                        style={{ padding: 4, color: 'var(--danger)' }}
+                        style={{ padding: 6, borderRadius: 6, color: 'var(--danger)' }}
+                        title="Delete client"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -274,8 +310,8 @@ export default function ClientDictionary({ onTasksUpdated }) {
           </div>
         </div>
 
-        {/* Selected Client Profile & Linked Tasks */}
-        <div className="card" style={{ padding: 20 }}>
+        {/* Selected Client Profile & Linked Tasks Card */}
+        <div className="card client-details-card" style={{ padding: 20 }}>
           {selectedClient ? (
             <div>
               {/* Client Info Header */}

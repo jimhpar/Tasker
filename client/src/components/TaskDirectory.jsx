@@ -25,6 +25,11 @@ export default function TaskDirectory() {
   const [loading, setLoading] = useState(false);
   const [typeToDelete, setTypeToDelete] = useState(null);
 
+  // In-row Edit Popup Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [modalItemToEdit, setModalItemToEdit] = useState(null);
+  const [modalEditName, setModalEditName] = useState('');
+
   useEffect(() => {
     loadData();
     const handleSync = () => loadData();
@@ -68,6 +73,28 @@ export default function TaskDirectory() {
     setEditingId(null);
     setName('');
     setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const handleOpenEditModal = (item) => {
+    setModalItemToEdit(item);
+    setModalEditName(item.name);
+    setShowEditModal(true);
+  };
+
+  const handleSaveModalEdit = async (e) => {
+    e.preventDefault();
+    if (!modalEditName.trim() || !modalItemToEdit) return;
+    const updatedName = modalEditName.trim();
+    const id = modalItemToEdit._id;
+    setShowEditModal(false);
+
+    setTypes((prev) => prev.map((t) => (t._id === id ? { ...t, name: updatedName } : t)));
+    try {
+      await taskTypeApi.update(id, { name: updatedName });
+    } catch (err) {
+      console.error(err);
+      loadData();
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -278,9 +305,9 @@ export default function TaskDirectory() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) minmax(360px, 1.4fr)', gap: 20 }}>
-        {/* Create / Edit Task Type Card (Workspace Scope removed completely as requested) */}
-        <div className="card" style={{ padding: 22, height: 'fit-content' }}>
+      <div className="task-directory-responsive-grid" style={{ display: 'grid', gap: 20 }}>
+        {/* Create / Edit Task Type Card */}
+        <div className="card task-create-card" style={{ padding: 22, height: 'fit-content' }}>
           <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             {editingId ? (
               <>
@@ -362,7 +389,7 @@ export default function TaskDirectory() {
         </div>
 
         {/* Existing Task Types List (Partitioned by Tab and Team) */}
-        <div className="card" style={{ padding: 22 }}>
+        <div className="card task-list-card" style={{ padding: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
               {activeTab === 'Personal'
@@ -465,7 +492,7 @@ export default function TaskDirectory() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <button
                         type="button"
-                        onClick={() => handleStartEdit(typeItem)}
+                        onClick={() => handleOpenEditModal(typeItem)}
                         className="btn-ghost"
                         style={{ padding: 6, color: 'var(--text-main)' }}
                         title={lang === 'bn' ? 'টাস্ক টাইপ এডিট করুন' : 'Edit Task Type'}
@@ -489,6 +516,48 @@ export default function TaskDirectory() {
           </div>
         </div>
       </div>
+
+      {/* In-app Edit Task Type Popup Modal */}
+      {showEditModal && modalItemToEdit && (
+        <div className="modal-overlay" style={{ zIndex: 1000 }} onClick={() => setShowEditModal(false)}>
+          <div className="modal-content" style={{ maxWidth: 420, padding: 22 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Edit2 size={18} color="var(--primary)" />
+                {lang === 'bn' ? 'টাস্ক টাইপ এডিট করুন' : 'Edit Task Type'}
+              </h3>
+              <button type="button" onClick={() => setShowEditModal(false)} className="btn-ghost" style={{ padding: 4, borderRadius: '50%' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveModalEdit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
+                  {t.taskTypeNameLabel || (lang === 'bn' ? 'টাস্ক টাইপের নাম *' : 'Task Type Name *')}
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={modalEditName}
+                  onChange={(e) => setModalEditName(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                <button type="button" onClick={() => setShowEditModal(false)} className="btn btn-secondary" style={{ flex: 1 }}>
+                  {lang === 'bn' ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                  {t.updateTaskTypeBtn || (lang === 'bn' ? 'আপডেট করুন' : 'Update')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* In-app Delete Confirmation Modal (avoids Electron native dialog focus lock) */}
       {typeToDelete && (
