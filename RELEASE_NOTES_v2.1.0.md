@@ -1,0 +1,56 @@
+# Tasker v2.1.0 — Autonomous Gemini 3.8 Flash & Next-Gen Productivity Suite 🚀
+
+**Release Date:** October 07, 2026  
+**Build Artifact:** `Tasker Setup 2.1.0.exe` (Windows x64 NSIS Installer)  
+**Binary Size:** ~93.2 MB  
+
+---
+
+## 🌟 What's New in Version 2.1.0
+
+### 🧠 1. Google Gemini 3.8 Flash Autonomous Agent
+- **Chain-of-Thought (CoT) Visualizer**: Real-time thinking animation that displays step-by-step reasoning (Intent Analysis → Memory/Habit Check → Schedule Conflict Detection → Action Decision).
+- **Direct Board Automation**: The assistant can now autonomously schedule, update, complete, and organize tasks directly on the live Tasker board without manual intervention.
+- **Multilingual & Banglish Comprehension**: Communicates naturally in Bengali, English, and Banglish (e.g., *"aj bikale ghurte jabo task e add kore rakho"*).
+- **Intelligent Intent Classifier**: Perfectly differentiates conversational questions, habit memory, task creation, and calendar viewing.
+
+### 🎙️ 2. Natural Human-like Voice Engine
+- Replaced robotic synthesizer with a rich, expressive human-like speech engine.
+- Natural pitch, modulation, and fluid sentence transitions in both Bengali and English.
+- Instant speech interruption, mute controls, and volume calibration.
+
+### 🧩 3. Persistent Memory & Adaptive Learning
+- **Context Awareness**: Remembers protected user routines (e.g., lunch breaks, deep work hours, morning meetings).
+- **Conversational Corrections**: Automatically learns and adapts when corrected by the user and persists preferences across sessions.
+
+### 👥 4. Smart Team vs. Personal Workspace Routing
+- **Default Isolation**: Prompts default safely to your **Personal Workspace** unless a team is explicitly mentioned.
+- **Auto Team Detection**: Mentions of teams or colleagues (e.g., *"Alpha Squad team e dao"*, *"Sunny ke assign koro"*) automatically route to the corresponding Team workspace and assign the designated member.
+
+### 📅 5. Seamless Work Dashboard & Calendar Synchronization
+- **Instant Today's Board Sync**: Today's tasks appear immediately in the **Work Dashboard's Kanban** columns (*To Do*, *In Progress*, *Done*).
+- **Future Date Segregation**: Upcoming tasks for tomorrow and beyond cleanly populate the **Calendar View** to keep today's dashboard focused.
+- **Quick "আগামীকাল" (Tomorrow) Shortcut**: Added a single-click button in the Calendar View to review tomorrow's planned activities instantly.
+- **Resolved Task Disappearance Bug**: Fixed ownership filter mismatch between local session tokens and database IDs. Personal tasks now render reliably without dropping out.
+
+### ⚡ 6. Offline-First & Hybrid Cloud Sync
+- Full offline fallback support with automatic background cloud synchronization when connected.
+- Robust Mongoose object sanitization preventing broken inserts.
+
+---
+
+## 📦 Installation Instructions
+
+1. Download **`Tasker Setup 2.1.0.exe`** from the Assets below.
+2. Run the installer to launch the Setup Wizard.
+3. Choose your preferred installation directory.
+4. Launch **Tasker** directly from your Desktop or Start Menu.
+
+---
+
+### SHA-256 Checksum
+```text
+File: Tasker Setup 2.1.0.exe
+Target: Windows x64 (NSIS)
+SHA-256: 62FF6766FED7EE3C7A3B406146648FA00AF89BD563E633EFDA036E1F09DDFC23
+```
