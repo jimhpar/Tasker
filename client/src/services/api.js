@@ -1,5 +1,23 @@
 // Tasker API Client with resilient Offline/Fallback Mock Support
-const API_BASE = 'http://127.0.0.1:5000/api';
+export const getApiBase = () => {
+  try {
+    const custom = localStorage.getItem('tasker_custom_api_base');
+    if (custom && custom.trim()) return custom.trim();
+  } catch {}
+  return (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE) || 'http://127.0.0.1:5000/api';
+};
+
+export const setApiBase = (url) => {
+  try {
+    if (url && url.trim()) {
+      localStorage.setItem('tasker_custom_api_base', url.trim());
+    } else {
+      localStorage.removeItem('tasker_custom_api_base');
+    }
+  } catch {}
+};
+
+const API_BASE = getApiBase();
 
 // Local storage keys
 const TOKEN_KEY = 'tasker_auth_token';
@@ -160,10 +178,11 @@ async function request(endpoint, options = {}) {
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const timeoutId = setTimeout(() => controller.abort(), 18000);
+  const activeBaseUrl = getApiBase();
 
   try {
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    const res = await fetch(`${activeBaseUrl}${endpoint}`, {
       ...options,
       headers,
       signal: controller.signal

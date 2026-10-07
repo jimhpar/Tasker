@@ -115,7 +115,20 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check endpoint
+// Root & Health check endpoints (for Keep-Alive & UptimeRobot)
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    appName: 'Tasker Productivity Suite API',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
