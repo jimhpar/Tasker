@@ -55,6 +55,7 @@ export default function CommunityChat() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
+  const isDiscardingRef = useRef(false);
 
   const messagesEndRef = useRef(null);
 
@@ -108,6 +109,13 @@ export default function CommunityChat() {
 
   const handleSendMessage = async (e) => {
     e?.preventDefault();
+
+    // If currently recording voice, direct send immediately!
+    if (isRecording) {
+      stopVoiceRecording(false);
+      return;
+    }
+
     if (!inputText.trim()) return;
 
     // Auto-subscribe user if they send a message while unsubscribed
@@ -145,19 +153,25 @@ export default function CommunityChat() {
     }
   };
 
-  // Voice recording handlers
+  // Voice recording handlers with Direct Send and Discard support
   const startVoiceRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+      isDiscardingRef.current = false;
 
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
       mediaRecorder.onstop = () => {
+        if (isDiscardingRef.current) {
+          audioChunksRef.current = [];
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const reader = new FileReader();
         reader.onloadend = async () => {
@@ -180,7 +194,8 @@ export default function CommunityChat() {
     }
   };
 
-  const stopVoiceRecording = () => {
+  const stopVoiceRecording = (cancel = false) => {
+    isDiscardingRef.current = !!cancel;
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -296,13 +311,13 @@ export default function CommunityChat() {
           </div>
           <div>
             <h3 style={{ fontSize: '1.02rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              {lang === 'bn' ? 'গ্লোবাল কমিউনিটি চ্যাট' : 'Global Community Chat'}
+              {lang === 'bn' ? 'গ্লোবাল চ্যাট' : 'Global Chat'}
               <span style={{ fontSize: '0.65rem', background: 'var(--success-bg)', color: 'var(--success)', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
                 ● Live
               </span>
             </h3>
             <p style={{ fontSize: '0.73rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              {lang === 'bn' ? 'সকল ব্যবহারকারীর জন্য উন্মুক্ত আলোচনা ও ভয়েস চ্যাট (ফাইল/ছবি ছাড়া)' : 'Open community discussion & voice notes (No files/images)'}
+              {lang === 'bn' ? 'সকল ব্যবহারকারীর জন্য উন্মুক্ত আলোচনা ও ভয়েস বার্তা' : 'Open live discussion & voice notes for all users'}
             </p>
           </div>
         </div>
@@ -516,24 +531,42 @@ export default function CommunityChat() {
           <Smile size={20} />
         </button>
 
-        {/* Voice Note Record / Stop Button */}
+        {/* Voice Note Record / Timer / Cancel Button */}
         {isRecording ? (
-          <button
-            type="button"
-            onClick={stopVoiceRecording}
-            className="btn btn-primary"
-            style={{ padding: '8px 14px', borderRadius: 'var(--radius-full)', background: '#ef4444', color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Square size={14} />
-            <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{formatTimer(recordingSeconds)}</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => stopVoiceRecording(true)}
+              className="btn-ghost"
+              style={{ padding: 6, borderRadius: '50%', color: '#ef4444' }}
+              title={lang === 'bn' ? 'রেকর্ডিং বাতিল করুন' : 'Cancel recording'}
+            >
+              <X size={18} />
+            </button>
+            <div
+              style={{
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-full)',
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: '0.82rem',
+                fontWeight: 700
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }} />
+              <span>{formatTimer(recordingSeconds)}</span>
+            </div>
+          </div>
         ) : (
           <button
             type="button"
             onClick={startVoiceRecording}
             className="btn-ghost"
             style={{ padding: 8, borderRadius: '50%', color: 'var(--text-muted)' }}
-            title="Record Voice Note"
+            title={lang === 'bn' ? 'ভয়েস বার্তা রেকর্ড করুন' : 'Record Voice Note'}
           >
             <Mic size={20} />
           </button>
@@ -543,15 +576,27 @@ export default function CommunityChat() {
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder={lang === 'bn' ? 'গ্লোবাল কমিউনিটিতে বার্তা লিখুন...' : 'Type a message to community...'}
+          placeholder={
+            isRecording
+              ? (lang === 'bn' ? 'ভয়েস রেকর্ড হচ্ছে... সরাসরি পাঠাতে Send বাটনে চাপুন!' : 'Recording voice... Press Send button to transmit!')
+              : (lang === 'bn' ? 'গ্লোবাল চ্যাটে বার্তা লিখুন...' : 'Type a message to Global Chat...')
+          }
+          disabled={isRecording}
           style={{ flex: 1, padding: '10px 16px', fontSize: '0.9rem', borderRadius: 'var(--radius-full)' }}
         />
 
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={!inputText.trim()}
-          style={{ padding: '10px 18px', borderRadius: 'var(--radius-full)' }}
+          disabled={!isRecording && !inputText.trim()}
+          style={{
+            padding: '10px 18px',
+            borderRadius: 'var(--radius-full)',
+            background: isRecording ? '#22c55e' : undefined,
+            boxShadow: isRecording ? '0 0 12px rgba(34, 197, 94, 0.5)' : undefined,
+            transition: 'all 0.2s'
+          }}
+          title={isRecording ? (lang === 'bn' ? 'সরাসরি পাঠিয়ে দিন' : 'Send recording now') : 'Send'}
         >
           <Send size={16} />
         </button>

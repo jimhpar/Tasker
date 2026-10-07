@@ -6,23 +6,33 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 router.use(authenticateToken);
 
-// Search users by username
+// Search users by username or full name
 router.get('/users/search', async (req, res) => {
   try {
     const { q } = req.query;
-    if (!q || q.trim().length < 2) {
+    if (!q || q.trim().length < 1) {
       return res.json([]);
     }
 
-    const users = await User.find({
-      username: { $regex: q.trim(), $options: 'i' },
-      _id: { $ne: req.user.userId }
-    })
-      .select('username profile')
-      .limit(10);
+    const cleanQ = q.trim();
+    const query = {
+      $or: [
+        { username: { $regex: cleanQ, $options: 'i' } },
+        { 'profile.fullName': { $regex: cleanQ, $options: 'i' } }
+      ]
+    };
+
+    if (req.user?.userId && req.user.userId !== 'u_1') {
+      query._id = { $ne: req.user.userId };
+    }
+
+    const users = await User.find(query)
+      .select('username profile email role')
+      .limit(15);
 
     res.json(users);
   } catch (err) {
+    console.error('Failed to search users:', err);
     res.status(500).json({ error: 'Failed to search users' });
   }
 });

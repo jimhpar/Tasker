@@ -23,8 +23,8 @@ export const translations = {
     peopleSub: 'কানেক্টেড ইউজার ও নেটওয়ার্ক',
     myTeam: 'আমার টিম',
     teamSub: 'সহযোগিতা ও রিকোয়েস্ট',
-    community: 'কমিউনিটি',
-    communitySub: 'গ্লোবাল নেটওয়ার্ক চ্যাট',
+    community: 'গ্লোবাল চ্যাট',
+    communitySub: 'সবার জন্য উন্মুক্ত আলোচনা',
     clientDictionary: 'ক্লায়েন্ট ডিকশনারি',
     clientSub: 'ক্লায়েন্ট ও কাজের হিসাব',
     taskDirectory: 'টাস্ক ডিরেক্টরি',
@@ -149,14 +149,14 @@ export const translations = {
     getGeminiKeyBtn: 'Gemini API Key নিন',
     geminiKeyHelp: 'Google AI Studio থেকে ফ্রিতে সরাসরি নিজস্ব API Key তৈরি করে নিন।',
 
-    // Community
-    communityTitle: 'গ্লোবাল কমিউনিটি চ্যাট',
-    communitySubtitle: 'সব ব্যবহারকারীর উন্মুক্ত আলোচনা ও সরাসরি P2P ফাইল শেয়ারিং',
+    // Global Chat
+    communityTitle: 'গ্লোবাল চ্যাট',
+    communitySubtitle: 'সকল ব্যবহারকারীর জন্য উন্মুক্ত আলোচনা ও সরাসরি ভয়েস বার্তা',
     livePeers: '● লাইভ',
     zeroServerBadge: 'সার্ভার খরচ শূন্য (P2P ট্রান্সফার)',
     p2pShared: 'P2P শেয়ার করেছেন:',
     saveFile: 'সেভ করুন',
-    writeMessagePlaceholder: 'কমিউনিটিতে মেসেজ লিখুন...',
+    writeMessagePlaceholder: 'গ্লোবাল চ্যাটে বার্তা লিখুন...',
 
     // Client Dictionary
     clientDictionaryTitle: 'ক্লায়েন্ট ডিকশনারি',
@@ -241,8 +241,8 @@ export const translations = {
     peopleSub: 'Contacts & Network',
     myTeam: 'My Team',
     teamSub: 'Collaboration & Requests',
-    community: 'Community',
-    communitySub: 'Global Network Chat',
+    community: 'Global Chat',
+    communitySub: 'Open Discussion for All',
     clientDictionary: 'Client Dictionary',
     clientSub: 'Clients & Work Logs',
     taskDirectory: 'Task Directory',
@@ -367,14 +367,14 @@ export const translations = {
     getGeminiKeyBtn: 'Get Gemini API Key',
     geminiKeyHelp: 'Get your free Gemini API key in seconds from Google AI Studio.',
 
-    // Community
-    communityTitle: 'Global Community Chat',
-    communitySubtitle: 'Open discussions with P2P direct media transfer',
+    // Global Chat
+    communityTitle: 'Global Chat',
+    communitySubtitle: 'Open discussions and live voice notes for all users',
     livePeers: '● Live',
     zeroServerBadge: 'Zero Cloud Storage (P2P Transfer)',
     p2pShared: 'Shared via P2P:',
     saveFile: 'Download',
-    writeMessagePlaceholder: 'Write a community message...',
+    writeMessagePlaceholder: 'Write a message to Global Chat...',
 
     // Client Dictionary
     clientDictionaryTitle: 'Client Dictionary',

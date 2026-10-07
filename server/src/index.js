@@ -12,6 +12,7 @@ import taskTypeRoutes from './routes/taskTypes.js';
 import teamRoutes from './routes/teams.js';
 import communityRoutes from './routes/community.js';
 import adminRoutes from './routes/admin.js';
+import connectionRoutes from './routes/connections.js';
 
 dotenv.config();
 
@@ -114,6 +115,7 @@ app.use('/api/task-types', taskTypeRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/connections', connectionRoutes);
 
 // Root & Health check endpoints (for Keep-Alive & UptimeRobot)
 app.get('/', (req, res) => {

@@ -707,43 +707,42 @@ export const teamApi = {
     const q = (query || '').toLowerCase().trim();
     if (!q) return [];
 
-    let remoteResults = [];
+    const currentUser = getStoredUser();
+    const myUsername = (currentUser?.username || '').toLowerCase();
+
+    // 1. Try remote search first (MongoDB Atlas)
+    let remoteResults = null;
     try {
       const res = await request(`/teams/users/search?q=${encodeURIComponent(query)}`);
-      if (Array.isArray(res) && res.length > 0) {
+      if (Array.isArray(res)) {
         remoteResults = res;
       }
     } catch {
       // offline / backend unreachable
     }
 
-    const defaultKnownUsers = [
-      {
-        _id: 'u_zim',
-        username: 'zim',
-        profile: { fullName: 'Zim Founder', bio: 'Founder & Workspace Owner' },
-        email: 'zim@tasker.app'
-      },
-      {
-        _id: 'u_sunny',
-        username: 'sunny',
-        profile: { fullName: 'Elias Sunny', bio: 'Connected Collaborator' },
-        email: 'sunny@tasker.app'
-      },
-      {
-        _id: 'u_elias',
-        username: 'elias',
-        profile: { fullName: 'Elias Sunny', bio: 'Connected Collaborator' },
-        email: 'elias@tasker.app'
-      },
-      {
-        _id: 'u_admin',
-        username: 'admin',
-        profile: { fullName: 'Workspace Admin', bio: 'System Administrator' },
-        email: 'admin@tasker.app'
-      }
-    ];
+    if (remoteResults !== null) {
+      const uniqueRemote = new Map();
+      remoteResults.forEach(u => {
+        const uName = (u.username || '').toLowerCase();
+        if (uName && uName !== myUsername && !uniqueRemote.has(uName)) {
+          uniqueRemote.set(uName, {
+            _id: u._id || u.id || ('u_' + uName),
+            username: u.username,
+            profile: {
+              fullName: u.profile?.fullName || u.fullName || u.username,
+              bio: u.profile?.bio || u.bio || 'Collaborator',
+              avatar: u.profile?.avatar || ''
+            },
+            email: u.email || `${u.username}@tasker.app`,
+            role: u.role || 'user'
+          });
+        }
+      });
+      return Array.from(uniqueRemote.values());
+    }
 
+    // 2. Offline Fallback: Deduplicate stored user registry by username
     let storedUsers = [];
     try {
       const rawUsers = localStorage.getItem('tasker_users_registry');
@@ -753,29 +752,29 @@ export const teamApi = {
       }
     } catch {}
 
-    const currentUser = getStoredUser();
-    const myUsername = (currentUser?.username || '').toLowerCase();
-
-    const allUsersMap = new Map();
-    defaultKnownUsers.forEach(u => allUsersMap.set(u.username.toLowerCase(), u));
-    storedUsers.forEach(u => allUsersMap.set(u.username.toLowerCase(), {
-      _id: u._id || u.id || ('u_' + u.username),
-      username: u.username,
-      profile: { fullName: u.profile?.fullName || u.fullName || u.username, bio: u.profile?.bio || u.bio || 'Collaborator' },
-      email: u.email || `${u.username}@tasker.app`
-    }));
-    remoteResults.forEach(u => allUsersMap.set((u.username || '').toLowerCase(), u));
-
-    const matches = Array.from(allUsersMap.values()).filter(u => {
+    const localMap = new Map();
+    storedUsers.forEach(u => {
       const uName = (u.username || '').toLowerCase();
-      if (uName === myUsername) return false;
-      const fName = (u.profile?.fullName || u.fullName || '').toLowerCase();
-      const bio = (u.profile?.bio || u.bio || '').toLowerCase();
+      if (uName && uName !== myUsername && !localMap.has(uName)) {
+        localMap.set(uName, {
+          _id: u._id || u.id || ('u_' + uName),
+          username: u.username,
+          profile: {
+            fullName: u.profile?.fullName || u.fullName || u.username,
+            bio: u.profile?.bio || u.bio || 'Collaborator'
+          },
+          email: u.email || `${u.username}@tasker.app`
+        });
+      }
+    });
+
+    return Array.from(localMap.values()).filter(u => {
+      const uName = (u.username || '').toLowerCase();
+      const fName = (u.profile?.fullName || '').toLowerCase();
+      const bio = (u.profile?.bio || '').toLowerCase();
       const email = (u.email || '').toLowerCase();
       return uName.includes(q) || fName.includes(q) || bio.includes(q) || email.includes(q);
     });
-
-    return matches;
   },
 
   async getTeams() {
@@ -1295,62 +1294,118 @@ export const peopleApi = {
     return person;
   },
 
-  // Connection Requests Management
-  getConnectionRequests() {
+  // Connection Requests Management (Live Cloud Sync with strict recipient filtering)
+  async getConnectionRequests() {
+    const currentUser = getStoredUser();
+    const myUsername = (currentUser?.username || '').toLowerCase();
+    let remoteReqs = null;
+
+    try {
+      const res = await request(`/connections/requests?username=${encodeURIComponent(myUsername)}`);
+      if (Array.isArray(res)) {
+        remoteReqs = res;
+      }
+    } catch (e) {
+      // offline fallback
+    }
+
     const raw = localStorage.getItem(CONNECTION_REQUESTS_KEY);
-    if (!raw) return [];
+    let localList = [];
     try {
       const all = JSON.parse(raw);
-      return Array.isArray(all) ? all.filter(r => r.status === 'pending') : [];
-    } catch {
-      return [];
+      if (Array.isArray(all)) localList = all;
+    } catch {}
+
+    if (remoteReqs !== null) {
+      const map = new Map();
+      localList.forEach(r => map.set(r._id, r));
+      remoteReqs.forEach(r => map.set(r._id, r));
+      const merged = Array.from(map.values());
+      try {
+        localStorage.setItem(CONNECTION_REQUESTS_KEY, JSON.stringify(merged));
+      } catch {}
+
+      // STRICT FILTER: Only return incoming requests addressed TO me, never sent BY me
+      return merged.filter(r =>
+        r.status === 'pending' &&
+        r.toUsername?.toLowerCase() === myUsername &&
+        r.fromUsername?.toLowerCase() !== myUsername
+      );
     }
+
+    // STRICT FILTER on local cache: Only requests received by me
+    return localList.filter(r =>
+      r.status === 'pending' &&
+      r.toUsername?.toLowerCase() === myUsername &&
+      r.fromUsername?.toLowerCase() !== myUsername
+    );
   },
 
   async sendConnectionRequest(fromUser, targetUser) {
-    const raw = localStorage.getItem(CONNECTION_REQUESTS_KEY);
-    let list = [];
-    try { list = JSON.parse(raw) || []; } catch {}
+    const fromU = (fromUser?.username || 'You').toLowerCase();
+    const toU = (targetUser?.username || 'User').toLowerCase();
 
-    const fromU = fromUser?.username || 'You';
-    const toU = targetUser?.username || 'User';
+    if (fromU === toU) {
+      return { status: 'self_error', message: 'You cannot connect to yourself' };
+    }
 
     // Check if already in connected people list
     const peopleList = getLocalPeople();
-    if (peopleList.some(p => p.username?.toLowerCase() === toU.toLowerCase())) {
+    if (peopleList.some(p => (p.username || '').toLowerCase() === toU)) {
       return { status: 'already_connected' };
     }
 
-    // Check if duplicate request already pending
-    const existing = list.find(r =>
-      r.status === 'pending' &&
-      r.fromUsername?.toLowerCase() === fromU.toLowerCase() &&
-      r.toUsername?.toLowerCase() === toU.toLowerCase()
-    );
-    if (existing) {
-      return { status: 'already_sent', request: existing };
-    }
-
-    const newReq = {
-      _id: 'creq_' + Date.now(),
-      fromUserId: fromUser._id || fromUser.id || fromU,
+    const payload = {
       fromUsername: fromU,
       fromFullName: fromUser.profile?.fullName || fromUser.fullName || fromU,
       fromBio: fromUser.profile?.bio || fromUser.bio || 'Collaborator',
-      fromEmail: fromUser.email || `${fromU.toLowerCase()}@tasker.app`,
+      fromEmail: fromUser.email || `${fromU}@tasker.app`,
       toUsername: toU,
-      toFullName: targetUser.profile?.fullName || targetUser.fullName || toU,
+      toFullName: targetUser.profile?.fullName || targetUser.fullName || toU
+    };
+
+    let savedReq = {
+      _id: 'creq_' + Date.now(),
+      ...payload,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
 
-    list.unshift(newReq);
-    localStorage.setItem(CONNECTION_REQUESTS_KEY, JSON.stringify(list));
-    notifyDataChanged('connection_requests', { action: 'sent', request: newReq });
-    return { status: 'sent', request: newReq };
+    // 1. Send to live cloud server
+    try {
+      const res = await request('/connections/request', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (res && res.request) {
+        savedReq = res.request;
+      }
+    } catch (e) {
+      console.warn('Connection request remote error, saved locally:', e);
+    }
+
+    // 2. Cache in local storage
+    const raw = localStorage.getItem(CONNECTION_REQUESTS_KEY);
+    let list = [];
+    try { list = JSON.parse(raw) || []; } catch {}
+    if (!list.some(r => r._id === savedReq._id)) {
+      list.unshift(savedReq);
+      localStorage.setItem(CONNECTION_REQUESTS_KEY, JSON.stringify(list));
+    }
+
+    notifyDataChanged('connection_requests', { action: 'sent', request: savedReq });
+    return { status: 'sent', request: savedReq };
   },
 
   async acceptConnectionRequest(requestId) {
+    // 1. Update on server
+    try {
+      await request(`/connections/requests/${requestId}/accept`, { method: 'PUT' });
+    } catch (e) {
+      console.warn('Accept connection remote error:', e);
+    }
+
+    // 2. Update locally
     const raw = localStorage.getItem(CONNECTION_REQUESTS_KEY);
     let list = [];
     try { list = JSON.parse(raw) || []; } catch {}
@@ -1394,6 +1449,14 @@ export const peopleApi = {
   },
 
   async declineConnectionRequest(requestId) {
+    // 1. Update on server
+    try {
+      await request(`/connections/requests/${requestId}/decline`, { method: 'PUT' });
+    } catch (e) {
+      console.warn('Decline connection remote error:', e);
+    }
+
+    // 2. Update locally
     const raw = localStorage.getItem(CONNECTION_REQUESTS_KEY);
     let list = [];
     try { list = JSON.parse(raw) || []; } catch {}

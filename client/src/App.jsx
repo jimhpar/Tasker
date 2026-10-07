@@ -66,9 +66,14 @@ function MainApp() {
   const loadPendingConnectionRequests = async () => {
     if (!user) return;
     try {
+      const myU = (user.username || '').toLowerCase();
       const myId = user._id || user.id;
       const allRequests = await peopleApi.getConnectionRequests();
-      const pendingForMe = allRequests.filter(r => r.receiverId === myId && r.status === 'pending');
+      const pendingForMe = (allRequests || []).filter(r =>
+        r.status === 'pending' &&
+        (r.toUsername?.toLowerCase() === myU || r.toUserId === myId || r.receiverId === myId) &&
+        r.fromUsername?.toLowerCase() !== myU
+      );
       setPendingConnectionRequestsCount(pendingForMe.length);
     } catch (e) {
       console.error(e);
@@ -105,7 +110,12 @@ function MainApp() {
     window.addEventListener('tasker_global_unread_changed', handleUnreadChanged);
     window.addEventListener('tasker_connection_requests_updated', handleRequestsChanged);
 
+    const reqInterval = setInterval(() => {
+      loadPendingConnectionRequests();
+    }, 10000); // 10s auto-check for pending connection requests
+
     return () => {
+      clearInterval(reqInterval);
       window.removeEventListener('tasker_global_unread_changed', handleUnreadChanged);
       window.removeEventListener('tasker_connection_requests_updated', handleRequestsChanged);
     };

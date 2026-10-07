@@ -62,11 +62,13 @@ export default function People() {
     const handleSync = () => loadData();
     window.addEventListener('tasker_people_updated', handleSync);
     window.addEventListener('tasker_connection_requests_updated', handleSync);
+    const interval = setInterval(loadData, 6000); // 6s live sync for connection requests
     return () => {
+      clearInterval(interval);
       window.removeEventListener('tasker_people_updated', handleSync);
       window.removeEventListener('tasker_connection_requests_updated', handleSync);
     };
-  }, []);
+  }, [user]);
 
   const showToast = (text, type = 'info') => {
     setToastMsg({ text, type });
@@ -75,17 +77,17 @@ export default function People() {
 
   const loadData = async () => {
     try {
-      const [peopleList, teamsList, clientsList] = await Promise.all([
+      const [peopleList, teamsList, clientsList, reqs] = await Promise.all([
         peopleApi.getPeople(),
         teamApi.getTeams(),
-        clientApi.getAll()
+        clientApi.getAll(),
+        peopleApi.getConnectionRequests()
       ]);
       const myU = (user?.username || '').toLowerCase();
       const cleanPeople = (peopleList || []).filter(p => (p.username || '').toLowerCase() !== myU);
       setPeople(cleanPeople);
       setTeams(teamsList || []);
       setClients(clientsList || []);
-      const reqs = peopleApi.getConnectionRequests();
       setConnectionRequests(reqs || []);
     } catch (err) {
       console.error('Error loading people data:', err);
@@ -125,17 +127,6 @@ export default function People() {
           'info'
         );
       } else {
-        // Send alert notification to the other party
-        addNotification({
-          title: lang === 'bn' ? '🤝 নতুন কানেকশন রিকোয়েস্ট' : '🤝 New Connection Request',
-          message: lang === 'bn'
-            ? `${user?.fullName || user?.username} আপনার সাথে কানেক্ট করতে অনুরোধ করেছেন।`
-            : `${user?.fullName || user?.username} sent you a connection request.`,
-          type: 'connection_request',
-          requestId: res.request?._id
-        });
-
-        playAlertChime();
         showToast(
           lang === 'bn'
             ? `📨 @${userObj.username} এর কাছে কানেকশন রিকোয়েস্ট পাঠানো হয়েছে! তিনি গ্রহণ করলে কানেক্ট হবে।`
