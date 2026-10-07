@@ -368,10 +368,19 @@ export default function AuthModal() {
             type="submit"
             className="btn btn-primary"
             disabled={loading || (!isLogin && usernameStatus.available === false)}
-            style={{ width: '100%', padding: '12px 16px', marginTop: 8, fontSize: '1rem' }}
+            style={{ width: '100%', padding: '12px 16px', marginTop: 8, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
           >
-            {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
-            <ArrowRight size={18} />
+            {loading ? (
+              <>
+                <Loader2 size={18} style={{ animation: 'spin 0.8s linear infinite' }} />
+                <span>Connecting to Cloud...</span>
+              </>
+            ) : (
+              <>
+                <span>{isLogin ? 'Sign In' : 'Create Account'}</span>
+                <ArrowRight size={18} />
+              </>
+            )}
           </button>
         </form>
       </div>

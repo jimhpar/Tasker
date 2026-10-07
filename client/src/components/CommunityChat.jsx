@@ -87,7 +87,7 @@ export default function CommunityChat() {
   const loadCommunityMessages = async () => {
     try {
       const data = await communityApi.getMessages();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setMessages(data);
       }
     } catch (e) {

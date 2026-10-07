@@ -189,8 +189,8 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
       <div className="calendar-responsive-grid" style={{ display: 'grid', gap: 20, alignItems: 'start' }}>
         {/* Calendar Month Grid Card */}
         <div className="card" style={{ padding: 18 }}>
-          {/* Day Names Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', marginBottom: 10, fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          {/* Day Names Row - Strictly Uniform 7 Columns */}
+          <div className="calendar-week-header" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', textAlign: 'center', marginBottom: 10, fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             <div>{t.sun}</div>
             <div>{t.mon}</div>
             <div>{t.tue}</div>
@@ -200,8 +200,8 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
             <div>{t.sat}</div>
           </div>
 
-          {/* Days Grid - Uniform 7-Column Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+          {/* Days Grid - Strictly Uniform 7-Column Grid */}
+          <div className="calendar-month-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6 }}>
             {/* Previous Month Days */}
             {Array.from({ length: firstDayIndex }).map((_, i) => {
               const dayNum = prevMonthDays - firstDayIndex + i + 1;

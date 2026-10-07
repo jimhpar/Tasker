@@ -32,6 +32,15 @@ const messageSchema = new mongoose.Schema({
     fileName: String,
     fileSize: Number,
     mimeType: String
+  },
+  audioData: {
+    type: String,
+    default: null
+  },
+  replyTo: {
+    id: String,
+    sender: String,
+    text: String
   }
 }, {
   timestamps: true

@@ -5,9 +5,16 @@ import User from '../models/User.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
-router.use(authenticateToken);
 
-// Get global community messages (Last 3 days only)
+// Optional Auth Helper: Populates req.user if token is present, but doesn't block if missing
+const optionalAuth = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return next();
+  authenticateToken(req, res, () => next());
+};
+
+// GET /api/community/messages - Get global community messages (Last 3 days only, public)
 router.get('/messages', async (req, res) => {
   try {
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
@@ -18,7 +25,7 @@ router.get('/messages', async (req, res) => {
     })
       .populate('senderId', 'username profile')
       .sort({ createdAt: -1 })
-      .limit(100);
+      .limit(150);
 
     res.json(messages.reverse());
   } catch (err) {
@@ -27,19 +34,26 @@ router.get('/messages', async (req, res) => {
   }
 });
 
-// Post a community message (text or P2P media metadata)
-router.post('/messages', async (req, res) => {
+// POST /api/community/messages - Post a community message (text, voice audio, or reply)
+router.post('/messages', optionalAuth, async (req, res) => {
   try {
-    const { content, isMediaP2P, mediaMetadata } = req.body;
+    const { content, audioData, replyTo, isMediaP2P, mediaMetadata, senderUsername } = req.body;
 
-    let validSenderId = req.user.userId;
+    if (!content && !audioData && !mediaMetadata) {
+      return res.status(400).json({ error: 'Message content or audio is required' });
+    }
+
+    let validSenderId = req.user?.userId;
+    let finalUsername = req.user?.username || senderUsername || 'User';
+
     if (!validSenderId || !mongoose.Types.ObjectId.isValid(validSenderId)) {
-      let dbUser = await User.findOne({ username: req.user.username });
+      let dbUser = await User.findOne({ username: finalUsername.toLowerCase() });
       if (!dbUser) {
         dbUser = await User.findOne({ username: { $in: ['zim', 'zim_founder', 'admin'] } });
       }
       if (dbUser) {
         validSenderId = dbUser._id;
+        finalUsername = dbUser.username;
       } else {
         validSenderId = new mongoose.Types.ObjectId();
       }
@@ -49,8 +63,10 @@ router.post('/messages', async (req, res) => {
       channelType: 'Community',
       channelId: 'global',
       senderId: validSenderId,
-      senderUsername: req.user.username || 'User',
+      senderUsername: finalUsername,
       content: content || '',
+      audioData: audioData || null,
+      replyTo: replyTo || null,
       isMediaP2P: !!isMediaP2P,
       mediaMetadata: mediaMetadata || null
     });

@@ -14,7 +14,8 @@ import {
   Mail,
   Calendar,
   Layers,
-  Crown
+  Crown,
+  RefreshCw
 } from 'lucide-react';
 
 const PLAN_COLORS = {
@@ -48,22 +49,33 @@ export default function AdminUsers({ currentUserId }) {
     plan: 'free'
   });
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   useEffect(() => {
-    loadUsers();
+    loadUsers(true);
     const handleUpdate = () => {
-      loadUsers();
+      loadUsers(false);
     };
     window.addEventListener('tasker_user_updated', handleUpdate);
-    return () => window.removeEventListener('tasker_user_updated', handleUpdate);
+    const interval = setInterval(() => {
+      loadUsers(false);
+    }, 8000); // 8-second auto-poll for new registrations across devices
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('tasker_user_updated', handleUpdate);
+    };
   }, []);
 
-  const loadUsers = async () => {
-    setLoading(true);
+  const loadUsers = async (manual = false) => {
+    if (manual) setIsRefreshing(true);
     try {
       const data = await adminApi.getUsers();
-      setUsers(data || []);
+      if (Array.isArray(data)) {
+        setUsers(data);
+      }
     } catch (e) {
-      console.error(e);
+      console.error('Error fetching admin users:', e);
       // Fallback: Read current logged in user and local admin cache
       const stored = getStoredUser();
       const fallbackUser = {
@@ -79,6 +91,9 @@ export default function AdminUsers({ currentUserId }) {
       setUsers([fallbackUser]);
     } finally {
       setLoading(false);
+      if (manual) {
+        setTimeout(() => setIsRefreshing(false), 500);
+      }
     }
   };
 
@@ -181,21 +196,41 @@ export default function AdminUsers({ currentUserId }) {
               <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>
                 User Management
               </h2>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-                Manage all registered accounts, roles, and subscription plans
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.72rem', background: 'rgba(34, 197, 94, 0.12)', color: '#22c55e', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                  Live MongoDB Atlas
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Auto-syncing every 8s
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        <button
-          onClick={() => { setFormData({ username: '', fullName: '', email: '', phone: '', password: '', role: 'user', plan: 'free' }); setShowAddModal(true); }}
-          className="btn btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 'var(--radius-md)' }}
-        >
-          <UserPlus size={16} />
-          <span>Add New User</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => loadUsers(true)}
+            disabled={isRefreshing}
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 'var(--radius-md)' }}
+            title="Refresh users list from cloud database"
+          >
+            <RefreshCw size={16} style={{ animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh List'}</span>
+          </button>
+
+          <button
+            onClick={() => { setFormData({ username: '', fullName: '', email: '', phone: '', password: '', role: 'user', plan: 'free' }); setShowAddModal(true); }}
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 'var(--radius-md)' }}
+          >
+            <UserPlus size={16} />
+            <span>Add New User</span>
+          </button>
+        </div>
       </div>
 
       {/* Notifications */}

@@ -599,16 +599,37 @@ body.theme-gray .btn-primary {
     flex-direction: column !important;
     gap: 14px !important;
   }
+  .calendar-month-grid,
+  .calendar-week-header {
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    gap: 4px !important;
+    box-sizing: border-box !important;
+  }
   .calendar-day-cell {
     aspect-ratio: 1 / 1 !important;
-    min-height: 40px !important;
-    max-height: 48px !important;
-    height: auto !important;
     width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
     padding: 0 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    box-sizing: border-box !important;
+    border: 1px solid var(--border-subtle) !important;
+    overflow: hidden !important;
+  }
+  .calendar-day-cell.is-today {
+    border: 1px solid var(--primary) !important;
+    box-shadow: inset 0 0 0 1px var(--primary) !important;
+  }
+  .calendar-day-cell.selected {
+    border: 1px solid var(--primary) !important;
+    box-shadow: inset 0 0 0 1.5px var(--primary) !important;
   }
   .calendar-date-number {
     font-size: 0.8rem !important;
@@ -689,12 +710,20 @@ body.theme-gray .btn-primary {
 }
 
 
-/* =================== CALENDAR DAY CELLS (UNIFORM EQUAL SIZE) =================== */
+/* =================== CALENDAR DAY CELLS (STRICTLY EQUAL 7-COLUMN GRID) =================== */
+.calendar-month-grid,
+.calendar-week-header {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
 .calendar-day-cell {
   aspect-ratio: 1 / 1 !important;
   width: 100% !important;
-  min-height: 42px;
-  max-height: 52px;
+  min-width: 0 !important;
+  max-width: 100% !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
@@ -704,24 +733,27 @@ body.theme-gray .btn-primary {
   box-sizing: border-box !important;
   border-radius: 12px;
   background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-subtle) !important;
   cursor: pointer;
   user-select: none;
+  overflow: hidden !important;
   transition: all 0.15s ease;
 }
 
 .calendar-day-cell:hover {
   background: var(--bg-hover);
-  border-color: var(--primary);
+  border-color: var(--primary) !important;
 }
 
 .calendar-day-cell.selected {
   background: var(--primary-glow) !important;
-  border: 2px solid var(--primary) !important;
+  border: 1px solid var(--primary) !important;
+  box-shadow: inset 0 0 0 1.5px var(--primary) !important;
 }
 
 .calendar-day-cell.is-today {
-  border: 1.5px solid var(--primary) !important;
+  border: 1px solid var(--primary) !important;
+  box-shadow: inset 0 0 0 1px var(--primary) !important;
 }
 
 .calendar-day-cell.is-prev-month {

@@ -178,7 +178,7 @@ async function request(endpoint, options = {}) {
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 18000);
+  const timeoutId = setTimeout(() => controller.abort(), 35000);
   const activeBaseUrl = getApiBase();
 
   try {
@@ -190,12 +190,14 @@ async function request(endpoint, options = {}) {
     clearTimeout(timeoutId);
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP error ${res.status}`);
+      throw new Error(errorData.error || errorData.message || `HTTP error ${res.status}`);
     }
     return await res.json();
   } catch (err) {
     clearTimeout(timeoutId);
-    // If backend is offline or network error, fallback to offline local store
+    if (err.name === 'AbortError') {
+      throw new Error('Server connection timed out. Please check your internet or retry.');
+    }
     throw err;
   }
 }
@@ -212,19 +214,9 @@ export const authApi = {
       setToken(res.token);
       setStoredUser(res.user);
       return res;
-    } catch {
-      // Offline fallback registration
-      const mockUser = {
-        id: 'usr_' + Date.now(),
-        username: data.username.toLowerCase(),
-        email: data.email || '',
-        profile: { fullName: data.fullName || data.username, avatar: '', bio: '', links: [] },
-        settings: { theme: 'Light', taskCreationMode: 'Simple', localAttachmentDir: 'C:/TaskerFiles' }
-      };
-      const mockToken = 'mock_jwt_' + Date.now();
-      setToken(mockToken);
-      setStoredUser(mockUser);
-      return { token: mockToken, user: mockUser };
+    } catch (err) {
+      // Do NOT silently swallow registration errors! Throw so user gets feedback.
+      throw err;
     }
   },
 
@@ -237,20 +229,23 @@ export const authApi = {
       setToken(res.token);
       setStoredUser(res.user);
       return res;
-    } catch {
-      // Offline fallback login
-      const mockUser = {
-        id: 'usr_demo_1',
-        username: identifier.toLowerCase(),
-        email: identifier.includes('@') ? identifier : `${identifier}@tasker.app`,
-        profile: { fullName: identifier, avatar: '', bio: 'Productivity Power User', links: [] },
-        settings: { theme: 'Light', taskCreationMode: 'Simple', localAttachmentDir: 'C:/TaskerFiles' }
-      };
-      const mockToken = 'mock_jwt_demo';
-      setToken(mockToken);
-      setStoredUser(mockUser);
-      return { token: mockToken, user: mockUser };
+    } catch (err) {
+      throw err;
     }
+  },
+
+  async loginOfflineDemo() {
+    const mockUser = {
+      id: 'usr_demo_' + Date.now(),
+      username: 'demo_user',
+      email: 'demo@tasker.app',
+      profile: { fullName: 'Demo User', avatar: '', bio: 'Productivity Power User', links: [] },
+      settings: { theme: 'Light', taskCreationMode: 'Simple', localAttachmentDir: 'C:/TaskerFiles' }
+    };
+    const mockToken = 'mock_jwt_demo_' + Date.now();
+    setToken(mockToken);
+    setStoredUser(mockUser);
+    return { token: mockToken, user: mockUser };
   },
 
   async getMe() {
@@ -1042,18 +1037,18 @@ export const saveLocalCommunityMessage = (msg) => {
 
 export const communityApi = {
   async getMessages() {
-    let remoteMessages = [];
+    let remoteMessages = null;
     try {
       const res = await request('/community/messages');
-      if (Array.isArray(res) && res.length > 0) {
+      if (Array.isArray(res)) {
         remoteMessages = res;
       }
-    } catch {
-      // offline / network error
+    } catch (e) {
+      console.warn('Community getMessages remote error:', e);
     }
 
     const localMessages = getLocalCommunityMessages();
-    if (remoteMessages.length > 0) {
+    if (remoteMessages !== null) {
       const map = new Map();
       localMessages.forEach(m => map.set(m._id, m));
       remoteMessages.forEach(m => map.set(m._id, m));
@@ -1072,8 +1067,9 @@ export const communityApi = {
 
   async sendMessage(data) {
     const user = getStoredUser() || { username: 'anonymous' };
+    const tempId = 'cmsg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
     const newMsg = {
-      _id: 'cmsg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      _id: tempId,
       senderId: user._id || user.id || 'u_me',
       senderUsername: user.username || user.fullName || 'You',
       senderRole: user.role || 'Member',
@@ -1085,24 +1081,42 @@ export const communityApi = {
       createdAt: new Date().toISOString()
     };
 
-    // 1. Try remote
-    try {
-      const remoteRes = await request('/community/messages', {
-        method: 'POST',
-        body: JSON.stringify(data)
-      });
-      if (remoteRes && remoteRes._id) {
-        Object.assign(newMsg, remoteRes);
-      }
-    } catch (e) {
-      // fallback to offline save
-    }
-
-    // 2. Always persist locally with 3-day retention
+    // 1. Immediately persist locally so UI renders message instantly
     saveLocalCommunityMessage(newMsg);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('tasker_community_chat_updated', { detail: newMsg }));
     }
+
+    // 2. Transmit to remote server
+    try {
+      const payloadToSend = {
+        content: data.content || '',
+        audioData: data.audioData || null,
+        replyTo: data.replyTo || null,
+        isMediaP2P: !!data.isMediaP2P,
+        mediaMetadata: data.mediaMetadata || null,
+        senderUsername: user.username || 'You'
+      };
+      const remoteRes = await request('/community/messages', {
+        method: 'POST',
+        body: JSON.stringify(payloadToSend)
+      });
+      if (remoteRes && remoteRes._id) {
+        // Replace temp optimistic message with confirmed server message
+        let localList = getLocalCommunityMessages();
+        localList = localList.map(m => m._id === tempId ? remoteRes : m);
+        try {
+          localStorage.setItem(COMMUNITY_MESSAGES_KEY, JSON.stringify(localList.slice(-200)));
+        } catch {}
+        Object.assign(newMsg, remoteRes);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('tasker_community_chat_updated', { detail: remoteRes }));
+        }
+      }
+    } catch (e) {
+      console.warn('Backend message save fallback:', e);
+    }
+
     return newMsg;
   }
 };
