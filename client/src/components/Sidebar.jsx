@@ -11,18 +11,29 @@ import {
   FolderTree,
   ChevronRight,
   Shield,
-  Layers
+  Layers,
+  Sparkles,
+  X,
+  Sliders,
+  Sun,
+  Moon
 } from 'lucide-react';
+import { getGeminiKey } from '../services/gemini';
 
 export default function Sidebar({
   activeTab,
   setActiveTab,
   teamRequestsCount = 0,
   pendingConnectionRequestsCount = 0,
-  hasGlobalUnread = false
+  hasGlobalUnread = false,
+  mobileOpen = false,
+  onCloseMobile,
+  onOpenAiChat,
+  onOpenSettings
 }) {
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user, theme, setTheme } = useAuth();
+  const hasGeminiKey = !!getGeminiKey(user?.username || user?._id);
   const usernameLower = user?.username?.toLowerCase() || '';
   const isAdmin = user?.role === 'admin' ||
     usernameLower === 'zim' ||
@@ -78,25 +89,155 @@ export default function Sidebar({
   ];
 
   return (
-    <aside
-      style={{
-        width: 260,
-        background: 'var(--bg-surface)',
-        borderRight: '1px solid var(--border-subtle)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: '16px 12px',
-        userSelect: 'none',
-        flexShrink: 0
-      }}
-    >
-      <div>
-        <div style={{ padding: '8px 12px 14px', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-          {t.mainNavigation || 'Main Menu'}
-        </div>
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {mobileOpen && (
+        <div
+          className="sidebar-backdrop mobile-only"
+          onClick={onCloseMobile}
+        />
+      )}
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <aside
+        className={`app-sidebar ${mobileOpen ? 'sidebar-open' : 'sidebar-closed'}`}
+        style={{
+          width: 260,
+          background: 'var(--bg-surface)',
+          borderRight: '1px solid var(--border-subtle)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          padding: '16px 12px',
+          userSelect: 'none',
+          flexShrink: 0
+        }}
+      >
+        <div>
+          {/* Mobile Top Panel: User Profile & AI Planner (Shown only on mobile) */}
+          <div
+            className="mobile-only"
+            style={{
+              flexDirection: 'column',
+              gap: 12,
+              padding: '12px 10px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-subtle)',
+              marginBottom: 14
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: '50%',
+                    background: '#0f172a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.9rem',
+                    flexShrink: 0
+                  }}
+                >
+                  {user?.profile?.avatar && user.profile.avatar.length > 4 ? (
+                    <img src={user.profile.avatar} alt="avatar" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
+                  ) : (
+                    (user?.username?.[0] || 'U').toUpperCase()
+                  )}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user?.profile?.fullName || user?.username}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    @{user?.username} • <span style={{ textTransform: 'uppercase', fontWeight: 700 }}>{user?.role || 'user'}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onCloseMobile}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border-subtle)'
+                }}
+                aria-label="Close menu"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* AI Planner Trigger Button for Mobile */}
+            <button
+              type="button"
+              onClick={onOpenAiChat}
+              className={hasGeminiKey ? 'btn btn-primary' : 'btn btn-secondary'}
+              style={{
+                width: '100%',
+                padding: '9px 14px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.85rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: hasGeminiKey ? '0 2px 10px rgba(99, 102, 241, 0.25)' : 'none'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={16} color={hasGeminiKey ? 'currentColor' : 'var(--text-muted)'} />
+                <span>{lang === 'bn' ? 'AI প্ল্যানার' : 'AI Planner'}</span>
+              </div>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: hasGeminiKey ? '#22c55e' : '#94a3b8',
+                  boxShadow: hasGeminiKey ? '0 0 8px #22c55e' : 'none'
+                }}
+              />
+            </button>
+
+            {/* Quick Settings & Theme Switcher on Mobile */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: '6px 10px', fontSize: '0.78rem', gap: 6 }}
+              >
+                <Sliders size={14} />
+                <span>{t.settings || 'Settings'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme(theme === 'Dark' ? 'Light' : 'Dark', true)}
+                className="btn btn-secondary"
+                style={{ padding: '6px 12px', fontSize: '0.78rem' }}
+                title="Toggle Theme"
+              >
+                {theme === 'Dark' ? <Sun size={15} color="#f59e0b" /> : <Moon size={15} color="var(--primary)" />}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ padding: '4px 10px 10px', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+            {t.mainNavigation || 'Main Menu'}
+          </div>
+
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -282,5 +423,6 @@ export default function Sidebar({
         </p>
       </div>
     </aside>
+  </>
   );
 }

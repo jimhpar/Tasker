@@ -40,6 +40,7 @@ export default function WorkDashboard({
 
   const [activeWorkspace, setActiveWorkspace] = useState('Personal'); // 'Personal' | 'Team'
   const [activeView, setActiveView] = useState('kanban'); // 'kanban' | 'list'
+  const [activeMobileColumn, setActiveMobileColumn] = useState('To Do');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMember, setSelectedMember] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
@@ -484,30 +485,85 @@ export default function WorkDashboard({
 
       {/* VIEW 1: KANBAN BOARD */}
       {activeView === 'kanban' && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${activeColumns.length}, minmax(280px, 1fr))`,
-            gap: 18,
-            alignItems: 'start',
-            overflowX: 'auto',
-            paddingBottom: 16
-          }}
-        >
-          {activeColumns.map((col) => (
-            <div
-              key={col.id}
-              style={{
-                background: 'var(--bg-surface)',
-                border: 'var(--glass-border)',
-                borderRadius: 'var(--radius-lg)',
-                padding: 16,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-                minHeight: 480
-              }}
-            >
+        <>
+          {/* Mobile Column Tabs Switcher */}
+          <div className="mobile-only kanban-mobile-tabs" style={{ marginBottom: 12 }}>
+            <div style={{
+              display: 'flex',
+              gap: 8,
+              overflowX: 'auto',
+              padding: '4px 2px',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none'
+            }}>
+              {activeColumns.map((col) => {
+                const isActive = activeMobileColumn === col.id;
+                return (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() => setActiveMobileColumn(col.id)}
+                    className={`btn-ghost ${isActive ? 'active' : ''}`}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '999px',
+                      fontSize: '0.8rem',
+                      fontWeight: isActive ? 700 : 500,
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: isActive ? 'var(--primary)' : 'var(--bg-surface)',
+                      color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                      border: isActive ? '1px solid var(--primary)' : 'var(--glass-border)',
+                      boxShadow: isActive ? '0 2px 8px rgba(79, 70, 229, 0.35)' : 'none',
+                      flexShrink: 0
+                    }}
+                  >
+                    <span>{col.title}</span>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        padding: '1px 6px',
+                        borderRadius: '999px',
+                        background: isActive ? 'rgba(255,255,255,0.25)' : 'var(--border-subtle)',
+                        color: isActive ? '#ffffff' : 'var(--text-muted)'
+                      }}
+                    >
+                      {col.tasks.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div
+            className="kanban-grid"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${activeColumns.length}, minmax(280px, 1fr))`,
+              gap: 18,
+              alignItems: 'start',
+              overflowX: 'auto',
+              paddingBottom: 16
+            }}
+          >
+            {activeColumns.map((col) => (
+              <div
+                key={col.id}
+                className={`kanban-column ${activeMobileColumn === col.id ? 'mobile-active-column' : 'mobile-hidden-column'}`}
+                style={{
+                  background: 'var(--bg-surface)',
+                  border: 'var(--glass-border)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  minHeight: 480
+                }}
+              >
               {/* Column Header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid var(--border-subtle)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -802,7 +858,8 @@ export default function WorkDashboard({
             </div>
           ))}
         </div>
-      )}
+      </>
+    )}
 
       {/* VIEW 2: LIST VIEW */}
       {activeView === 'list' && (

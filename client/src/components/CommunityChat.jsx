@@ -206,7 +206,7 @@ export default function CommunityChat() {
 
   return (
     <div
-      className="card"
+      className="card community-chat-card"
       style={{
         display: 'flex',
         flexDirection: 'column',

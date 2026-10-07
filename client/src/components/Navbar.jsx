@@ -22,7 +22,9 @@ import {
   AlertTriangle,
   AlertCircle,
   CheckCheck,
-  Trash2
+  Trash2,
+  Menu,
+  X
 } from 'lucide-react';
 import {
   getStoredNotifications,
@@ -32,7 +34,7 @@ import {
 } from '../services/notificationService';
 import { getGeminiKey } from '../services/gemini';
 
-export default function Navbar({ onOpenAiChat, onOpenSettings }) {
+export default function Navbar({ onOpenAiChat, onOpenSettings, mobileMenuOpen = false, onToggleMobileMenu }) {
   const { user, logout, theme, setTheme } = useAuth();
   const { lang, toggleLanguage, t } = useLanguage();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -105,14 +107,32 @@ export default function Navbar({ onOpenAiChat, onOpenSettings }) {
       }}
     >
       {/* Brand & Workspace Name */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Mobile Hamburger Drawer Toggle */}
+        <button
+          type="button"
+          onClick={onToggleMobileMenu}
+          className="btn btn-secondary mobile-only"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 'var(--radius-md)',
+            padding: 0,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          aria-label="Toggle navigation menu"
+        >
+          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 38,
-            height: 38
+            width: 36,
+            height: 36
           }}
         >
           <img
@@ -169,11 +189,11 @@ export default function Navbar({ onOpenAiChat, onOpenSettings }) {
           <span>{lang === 'bn' ? 'বাংলা' : 'EN'}</span>
         </button>
 
-        {/* AI Planner Trigger Button */}
+        {/* AI Planner Trigger Button (Desktop Only - mobile gets prominent card in drawer) */}
         <button
           type="button"
           onClick={onOpenAiChat}
-          className={hasGeminiKey ? 'btn btn-primary' : 'btn'}
+          className={hasGeminiKey ? 'btn btn-primary desktop-only' : 'btn desktop-only'}
           style={{
             padding: '8px 16px',
             borderRadius: 'var(--radius-full)',
@@ -422,8 +442,8 @@ export default function Navbar({ onOpenAiChat, onOpenSettings }) {
           )}
         </div>
 
-        {/* Profile Avatar & Dropdown */}
-        <div style={{ position: 'relative' }} ref={dropdownRef}>
+        {/* Profile Avatar & Dropdown (Desktop Only - mobile gets profile card in drawer) */}
+        <div className="desktop-only" style={{ position: 'relative' }} ref={dropdownRef}>
           <button
             type="button"
             onClick={() => setDropdownOpen(!dropdownOpen)}

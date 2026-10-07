@@ -56,6 +56,7 @@ function MainApp() {
   const [showAiModal, setShowAiModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const tasksRef = useRef([]);
   useEffect(() => {
@@ -181,21 +182,36 @@ function MainApp() {
 
   return (
     <div className="app-container">
-      {/* Top Navbar (Universal search removed as requested) */}
+      {/* Top Navbar */}
       <Navbar
         onOpenAiChat={() => setShowAiModal(true)}
         onOpenSettings={() => setShowSettingsModal(true)}
+        mobileMenuOpen={mobileMenuOpen}
+        onToggleMobileMenu={() => setMobileMenuOpen(prev => !prev)}
       />
 
       {/* Main Workspace Layout */}
       <div className="main-layout">
-        {/* Left Sidebar */}
+        {/* Left Sidebar (Desktop Static & Mobile Slide-over Drawer) */}
         <Sidebar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            setMobileMenuOpen(false);
+          }}
           teamRequestsCount={teamRequestsCount}
           pendingConnectionRequestsCount={pendingConnectionRequestsCount}
           hasGlobalUnread={hasGlobalUnread}
+          mobileOpen={mobileMenuOpen}
+          onCloseMobile={() => setMobileMenuOpen(false)}
+          onOpenAiChat={() => {
+            setMobileMenuOpen(false);
+            setShowAiModal(true);
+          }}
+          onOpenSettings={() => {
+            setMobileMenuOpen(false);
+            setShowSettingsModal(true);
+          }}
         />
 
         {/* Content Area - Kept mounted for instantaneous 0ms section switching */}
