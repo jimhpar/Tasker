@@ -32,7 +32,7 @@ export default function Sidebar({
   onOpenAiChat,
   onOpenSettings
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { user, logout, theme, setTheme } = useAuth();
   const hasGeminiKey = !!getGeminiKey(user?.username || user?._id);
   const usernameLower = user?.username?.toLowerCase() || '';
@@ -447,7 +447,7 @@ export default function Sidebar({
           cursor: 'pointer',
           transition: 'all 0.15s ease'
         }}
-        className="btn-ghost"
+        className="btn-ghost mobile-only"
       >
         <LogOut size={16} />
         <span>{t.logout || 'Log Out'}</span>
