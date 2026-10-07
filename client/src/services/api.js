@@ -1241,7 +1241,43 @@ const setLocalPeople = (list) => {
 
 export const peopleApi = {
   async getPeople() {
-    return getLocalPeople();
+    const local = getLocalPeople();
+    const currentUser = getStoredUser();
+    const myUsername = (currentUser?.username || '').toLowerCase();
+    if (!myUsername) return local;
+
+    try {
+      const res = await request(`/connections/connected?username=${encodeURIComponent(myUsername)}`);
+      if (Array.isArray(res)) {
+        // Map local customizations (teams, clientTag)
+        const localMap = new Map();
+        local.forEach(p => localMap.set((p.username || '').toLowerCase(), p));
+
+        const merged = res.map(remoteP => {
+          const uName = (remoteP.username || '').toLowerCase();
+          const localP = localMap.get(uName);
+          return {
+            ...remoteP,
+            teams: (localP?.teams && localP.teams.length > 0) ? localP.teams : (remoteP.teams || []),
+            clientTag: localP?.clientTag || remoteP.clientTag || ''
+          };
+        });
+
+        // Retain manual local-only people if any
+        local.forEach(p => {
+          const uName = (p.username || '').toLowerCase();
+          if (!merged.some(m => (m.username || '').toLowerCase() === uName)) {
+            merged.push(p);
+          }
+        });
+
+        setLocalPeople(merged);
+        return merged;
+      }
+    } catch (e) {
+      console.warn('Connected people live fetch error:', e);
+    }
+    return local;
   },
 
   async addPerson(userData) {
@@ -1265,9 +1301,29 @@ export const peopleApi = {
     return newPerson;
   },
 
-  async removePerson(personId) {
-    const list = getLocalPeople().filter(p => p._id !== personId && p.username !== personId);
-    setLocalPeople(list);
+  async removePerson(personIdOrUsername) {
+    const list = getLocalPeople();
+    const target = list.find(p => p._id === personIdOrUsername || p.username === personIdOrUsername);
+    const targetUsername = (target?.username || personIdOrUsername || '').toLowerCase();
+
+    // 1. Immediately remove from local cache (optimistic 0ms UI update)
+    const filtered = list.filter(p => p._id !== personIdOrUsername && (p.username || '').toLowerCase() !== targetUsername);
+    setLocalPeople(filtered);
+
+    // 2. Call remote server to disconnect in MongoDB
+    if (targetUsername) {
+      try {
+        const currentUser = getStoredUser();
+        const myUsername = (currentUser?.username || '').toLowerCase();
+        await request(`/connections/connected/${encodeURIComponent(targetUsername)}?username=${encodeURIComponent(myUsername)}`, {
+          method: 'DELETE'
+        });
+      } catch (e) {
+        console.warn('Disconnect remote error:', e);
+      }
+    }
+
+    notifyDataChanged('people', { action: 'removed', username: targetUsername });
     return { success: true };
   },
 
@@ -1398,54 +1454,43 @@ export const peopleApi = {
   },
 
   async acceptConnectionRequest(requestId) {
-    // 1. Update on server
-    try {
-      await request(`/connections/requests/${requestId}/accept`, { method: 'PUT' });
-    } catch (e) {
-      console.warn('Accept connection remote error:', e);
-    }
+    let acceptedReq = null;
 
-    // 2. Update locally
+    // 1. Optimistic local update
     const raw = localStorage.getItem(CONNECTION_REQUESTS_KEY);
     let list = [];
     try { list = JSON.parse(raw) || []; } catch {}
     const req = list.find(r => r._id === requestId);
     if (req) {
       req.status = 'accepted';
+      acceptedReq = req;
       localStorage.setItem(CONNECTION_REQUESTS_KEY, JSON.stringify(list));
 
-      // Add sender to receiver's list
+      // Add sender to receiver's list immediately
       await peopleApi.addPerson({
         username: req.fromUsername,
         fullName: req.fromFullName,
         bio: req.fromBio,
         email: req.fromEmail
       });
-
-      // Also ensure receiver is added to sender's list
-      const senderKey = `tasker_connected_people_${(req.fromUsername || '').toLowerCase()}`;
-      try {
-        let senderPeople = JSON.parse(localStorage.getItem(senderKey) || '[]');
-        if (!senderPeople.some(p => (p.username || '').toLowerCase() === (req.toUsername || '').toLowerCase())) {
-          senderPeople.push({
-            _id: 'p_' + req.toUsername,
-            username: req.toUsername.toLowerCase(),
-            fullName: req.toFullName,
-            bio: 'Collaborator',
-            email: `${req.toUsername.toLowerCase()}@tasker.app`,
-            connectedAt: new Date().toISOString(),
-            teams: [],
-            clientTag: ''
-          });
-          localStorage.setItem(senderKey, JSON.stringify(senderPeople));
-        }
-      } catch {}
-
-      notifyDataChanged('connection_requests', { action: 'accepted', requestId });
-      notifyDataChanged('people', { action: 'connected' });
-      return { success: true, person: req };
     }
-    return { success: false };
+
+    // 2. Update on server (sets status to accepted in MongoDB)
+    try {
+      const res = await request(`/connections/requests/${requestId}/accept`, { method: 'PUT' });
+      if (res && res.request) {
+        acceptedReq = res.request;
+      }
+    } catch (e) {
+      console.warn('Accept connection remote error:', e);
+    }
+
+    // 3. Immediately refresh connected network from cloud
+    await peopleApi.getPeople();
+
+    notifyDataChanged('connection_requests', { action: 'accepted', requestId });
+    notifyDataChanged('people', { action: 'connected' });
+    return { success: true, person: acceptedReq };
   },
 
   async declineConnectionRequest(requestId) {

@@ -171,4 +171,111 @@ router.put('/requests/:id/decline', async (req, res) => {
   }
 });
 
+// GET /api/connections/connected - List all accepted connected partners for the current user
+router.get('/connected', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    let myUsername = '';
+    if (authHeader) {
+      await new Promise(resolve => authenticateToken(req, res, resolve));
+      myUsername = req.user?.username?.toLowerCase();
+    }
+    if (!myUsername && req.query.username) {
+      myUsername = req.query.username.toLowerCase().trim();
+    }
+
+    if (!myUsername) {
+      return res.json([]);
+    }
+
+    // Find all accepted connections involving this user
+    const acceptedRecords = await ConnectionRequest.find({
+      status: 'accepted',
+      $or: [
+        { fromUsername: myUsername },
+        { toUsername: myUsername }
+      ]
+    }).sort({ updatedAt: -1 });
+
+    const partnerMap = new Map();
+
+    for (const rec of acceptedRecords) {
+      const isSender = rec.fromUsername.toLowerCase() === myUsername;
+      const partnerUsername = (isSender ? rec.toUsername : rec.fromUsername).toLowerCase();
+
+      if (partnerUsername && partnerUsername !== myUsername && !partnerMap.has(partnerUsername)) {
+        partnerMap.set(partnerUsername, {
+          _id: 'p_' + partnerUsername,
+          connectionId: rec._id,
+          username: partnerUsername,
+          fullName: isSender ? (rec.toFullName || partnerUsername) : (rec.fromFullName || partnerUsername),
+          bio: isSender ? (rec.toBio || 'Collaborator') : (rec.fromBio || 'Collaborator'),
+          email: isSender ? (rec.toEmail || `${partnerUsername}@tasker.app`) : (rec.fromEmail || `${partnerUsername}@tasker.app`),
+          connectedAt: rec.updatedAt || rec.createdAt,
+          teams: [],
+          clientTag: ''
+        });
+      }
+    }
+
+    // Enrich with fresh profile data from User collection
+    const partnerUsernames = Array.from(partnerMap.keys());
+    if (partnerUsernames.length > 0) {
+      try {
+        const users = await User.find({ username: { $in: partnerUsernames } }).select('-password');
+        for (const u of users) {
+          const entry = partnerMap.get(u.username.toLowerCase());
+          if (entry) {
+            entry.dbUserId = u._id;
+            entry.fullName = u.profile?.fullName || entry.fullName || u.username;
+            entry.bio = u.profile?.bio || entry.bio;
+            entry.email = u.email || entry.email;
+            entry.avatar = u.profile?.avatar;
+          }
+        }
+      } catch (e) {
+        console.warn('Enrich user error:', e);
+      }
+    }
+
+    res.json(Array.from(partnerMap.values()));
+  } catch (err) {
+    console.error('Error fetching connected users:', err);
+    res.status(500).json({ error: 'Failed to fetch connected users' });
+  }
+});
+
+// DELETE /api/connections/connected/:partnerUsername - Disconnect a partner
+router.delete('/connected/:partnerUsername', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    let myUsername = '';
+    if (authHeader) {
+      await new Promise(resolve => authenticateToken(req, res, resolve));
+      myUsername = req.user?.username?.toLowerCase();
+    }
+    if (!myUsername && req.query.username) {
+      myUsername = req.query.username.toLowerCase().trim();
+    }
+    const partnerUsername = (req.params.partnerUsername || '').toLowerCase().trim();
+
+    if (!myUsername || !partnerUsername) {
+      return res.status(400).json({ error: 'Both usernames are required to disconnect' });
+    }
+
+    // Remove all connection records between these two users
+    await ConnectionRequest.deleteMany({
+      $or: [
+        { fromUsername: myUsername, toUsername: partnerUsername },
+        { fromUsername: partnerUsername, toUsername: myUsername }
+      ]
+    });
+
+    res.json({ success: true, message: `Disconnected from @${partnerUsername}` });
+  } catch (err) {
+    console.error('Error disconnecting partner:', err);
+    res.status(500).json({ error: 'Failed to disconnect' });
+  }
+});
+
 export default router;

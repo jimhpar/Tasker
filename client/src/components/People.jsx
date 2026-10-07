@@ -62,7 +62,7 @@ export default function People() {
     const handleSync = () => loadData();
     window.addEventListener('tasker_people_updated', handleSync);
     window.addEventListener('tasker_connection_requests_updated', handleSync);
-    const interval = setInterval(loadData, 6000); // 6s live sync for connection requests
+    const interval = setInterval(loadData, 2500); // 2.5s ultra-fast live sync for connection requests & network
     return () => {
       clearInterval(interval);
       window.removeEventListener('tasker_people_updated', handleSync);
@@ -144,6 +144,29 @@ export default function People() {
   };
 
   const handleAcceptRequest = async (requestId) => {
+    // 0ms Optimistic UI Update: immediately reflect acceptance in UI
+    const targetReq = connectionRequests.find(r => r._id === requestId);
+    setConnectionRequests(prev => prev.filter(r => r._id !== requestId));
+    if (targetReq) {
+      setPeople(prev => {
+        const uName = (targetReq.fromUsername || '').toLowerCase();
+        if (prev.some(p => (p.username || '').toLowerCase() === uName)) return prev;
+        return [
+          {
+            _id: 'p_' + uName,
+            username: uName,
+            fullName: targetReq.fromFullName || uName,
+            bio: targetReq.fromBio || 'Collaborator',
+            email: targetReq.fromEmail || `${uName}@tasker.app`,
+            connectedAt: new Date().toISOString(),
+            teams: [],
+            clientTag: ''
+          },
+          ...prev
+        ];
+      });
+    }
+
     try {
       const res = await peopleApi.acceptConnectionRequest(requestId);
       if (res.success) {
@@ -155,17 +178,19 @@ export default function People() {
         addNotification({
           title: lang === 'bn' ? '🤝 কানেকশন সম্পন্ন' : '🤝 Connection Established',
           message: lang === 'bn'
-            ? `@${res.person?.fromUsername} এর সাথে সফলভাবে কানেক্ট হয়েছেন।`
-            : `You are now connected with @${res.person?.fromUsername}.`
+            ? `@${res.person?.fromUsername || targetReq?.fromUsername} এর সাথে সফলভাবে কানেক্ট হয়েছেন।`
+            : `You are now connected with @${res.person?.fromUsername || targetReq?.fromUsername}.`
         });
         loadData();
       }
     } catch (err) {
       showToast(`⚠️ ${err.message}`, 'danger');
+      loadData();
     }
   };
 
   const handleDeclineRequest = async (requestId) => {
+    setConnectionRequests(prev => prev.filter(r => r._id !== requestId));
     try {
       await peopleApi.declineConnectionRequest(requestId);
       showToast(
@@ -175,6 +200,7 @@ export default function People() {
       loadData();
     } catch (err) {
       showToast(`⚠️ ${err.message}`, 'danger');
+      loadData();
     }
   };
 
@@ -211,15 +237,18 @@ export default function People() {
       : `Are you sure you want to remove @${username} from your People network?`;
 
     if (window.confirm(confirmPrompt)) {
+      // 0ms Optimistic UI Update
+      setPeople(prev => prev.filter(p => p._id !== personId && (p.username || '').toLowerCase() !== (username || '').toLowerCase()));
       try {
-        await peopleApi.removePerson(personId);
+        await peopleApi.removePerson(username || personId);
         showToast(
-          lang === 'bn' ? 'ব্যক্তিকে তালিকা থেকে বাদ দেওয়া হয়েছে।' : 'Person removed from your network.',
+          lang === 'bn' ? `@${username} কে তালিকা থেকে বাদ দেওয়া হয়েছে।` : `@${username} removed from your network.`,
           'info'
         );
         loadData();
       } catch (err) {
         showToast(`⚠️ ${err.message}`, 'danger');
+        loadData();
       }
     }
   };
@@ -600,48 +629,29 @@ export default function People() {
           </div>
         </div>
 
-        {/* People Table */}
+        {/* People Card List */}
         {filteredPeople.length === 0 ? (
           <div style={{ padding: 36, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
             {t.noConnectedPeople || 'No connected people yet. Search above to add contacts!'}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {/* Table Header */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '50px 1.5fr 1.2fr 1.2fr 160px',
-                padding: '12px 18px',
-                background: 'var(--bg-input)',
-                fontWeight: 700,
-                fontSize: '0.8rem',
-                color: 'var(--text-muted)',
-                borderBottom: '1px solid var(--border-subtle)'
-              }}
-            >
-              <div>#</div>
-              <div>{lang === 'bn' ? 'নাম ও ইউজারনেম' : 'Person'}</div>
-              <div>{lang === 'bn' ? 'টিম এসোসিয়েশন' : 'Team'}</div>
-              <div>{lang === 'bn' ? 'কন্টাক্ট পার্সন (Client)' : 'Client Contact'}</div>
-              <div style={{ textAlign: 'right' }}>{lang === 'bn' ? 'অ্যাকশন' : 'Actions'}</div>
-            </div>
-
-            {/* Rows */}
-            {filteredPeople.map((person) => {
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14 }}>
+            {filteredPeople.map((person, idx) => {
               const isTeamDropdownOpen = activeTeamDropdownPersonId === person._id;
               const isClientDropdownOpen = activeClientDropdownPersonId === person._id;
 
               return (
                 <div
-                  key={person._id}
+                  key={person._id || idx}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '50px 1.5fr 1.2fr 1.2fr 160px',
-                    padding: '14px 18px',
-                    alignItems: 'center',
-                    borderBottom: '1px solid var(--border-subtle)',
-                    fontSize: '0.88rem',
+                    background: 'var(--bg-card, var(--bg-surface))',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    boxShadow: 'var(--shadow-xs)',
                     position: 'relative',
                     zIndex: (isTeamDropdownOpen || isClientDropdownOpen) ? 35 : 1
                   }}
@@ -657,40 +667,85 @@ export default function People() {
                     />
                   )}
 
-                  {/* Avatar Initial */}
+                  {/* Header Row: Avatar + Info + Delete Action Button */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: '50%',
+                          background: 'var(--primary)',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '1rem',
+                          flexShrink: 0
+                        }}
+                      >
+                        {(person.fullName?.[0] || person.username?.[0] || 'P').toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.94rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {person.fullName || person.username}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 600 }}>@{person.username}</span>
+                          <span>•</span>
+                          <span>{person.bio || 'Collaborator'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Delete / Disconnect Button - CLEARLY VISIBLE AND NEVER PUSHED OFF-SCREEN */}
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePerson(person._id, person.username)}
+                      className="btn-ghost"
+                      style={{
+                        color: 'var(--danger, #ef4444)',
+                        padding: '6px 10px',
+                        borderRadius: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        flexShrink: 0
+                      }}
+                      title={t.disconnectPerson || 'Remove / Disconnect'}
+                    >
+                      <Trash2 size={14} />
+                      <span>{lang === 'bn' ? 'মুছুন' : 'Remove'}</span>
+                    </button>
+                  </div>
+
+                  {/* Badges & Association Row */}
                   <div
                     style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: '50%',
-                      background: 'var(--primary)',
-                      color: 'var(--bg-app)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 700,
-                      fontSize: '0.82rem'
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 10,
+                      paddingTop: 10,
+                      borderTop: '1px dashed var(--border-subtle)',
+                      fontSize: '0.8rem'
                     }}
                   >
-                    {(person.username?.[0] || 'P').toUpperCase()}
-                  </div>
-
-                  {/* Name and Username */}
-                  <div>
-                    <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>
-                      {person.fullName || person.username}
-                    </div>
-                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                      @{person.username} • {person.bio || 'Collaborator'}
-                    </div>
-                  </div>
-
-                  {/* Team Tag & Add to Team Dropdown */}
-                  <div style={{ position: 'relative', zIndex: isTeamDropdownOpen ? 40 : 'auto' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                    {/* Team Association */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative', zIndex: isTeamDropdownOpen ? 40 : 'auto', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {lang === 'bn' ? 'টিম:' : 'Team:'}
+                      </span>
                       {person.teams && person.teams.length > 0 ? (
-                        person.teams.map((tmName, idx) => (
-                          <span key={idx} className="badge badge-todo" style={{ fontSize: '0.68rem' }}>
+                        person.teams.map((tmName, tIdx) => (
+                          <span key={tIdx} className="badge badge-todo" style={{ fontSize: '0.7rem' }}>
                             <Building2 size={11} /> {tmName}
                           </span>
                         ))
@@ -705,60 +760,61 @@ export default function People() {
                           setActiveTeamDropdownPersonId(isTeamDropdownOpen ? null : person._id);
                         }}
                         className="btn-ghost"
-                        style={{ padding: '3px 6px', borderRadius: 4, fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 2, border: '1px dashed var(--border-subtle)' }}
+                        style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 4, border: '1px dashed var(--border-subtle)' }}
                         title={lang === 'bn' ? 'টিমে যুক্ত করুন' : 'Add to Team'}
                       >
                         <Plus size={11} />
                         <span>{lang === 'bn' ? 'টিম' : 'Team'}</span>
                       </button>
+
+                      {/* Team Picker Popover */}
+                      {isTeamDropdownOpen && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 'calc(100% + 4px)',
+                            left: 0,
+                            zIndex: 100,
+                            background: 'var(--bg-surface)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-md)',
+                            boxShadow: '0 12px 36px rgba(0,0,0,0.28)',
+                            padding: 8,
+                            minWidth: 190,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4
+                          }}
+                        >
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', padding: '4px 8px' }}>
+                            {lang === 'bn' ? 'টিম নির্বাচন করুন:' : 'Select Team:'}
+                          </span>
+                          {teams.map((tm) => (
+                            <button
+                              key={tm._id}
+                              type="button"
+                              onClick={() => {
+                                handleAssignToTeam(person, tm);
+                                setActiveTeamDropdownPersonId(null);
+                              }}
+                              className="btn-ghost"
+                              style={{ textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <Building2 size={13} color="var(--primary)" />
+                              <span>{tm.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Team Picker Popover */}
-                    {isTeamDropdownOpen && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: 'calc(100% + 4px)',
-                          left: 0,
-                          zIndex: 100,
-                          background: 'var(--bg-surface)',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: 'var(--radius-md)',
-                          boxShadow: '0 12px 36px rgba(0,0,0,0.28)',
-                          padding: 8,
-                          minWidth: 190,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 4
-                        }}
-                      >
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', padding: '4px 8px' }}>
-                          {lang === 'bn' ? 'টিম নির্বাচন করুন:' : 'Select Team:'}
-                        </span>
-                        {teams.map((tm) => (
-                          <button
-                            key={tm._id}
-                            type="button"
-                            onClick={() => {
-                              handleAssignToTeam(person, tm);
-                              setActiveTeamDropdownPersonId(null);
-                            }}
-                            className="btn-ghost"
-                            style={{ textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}
-                          >
-                            <Building2 size={13} color="var(--primary)" />
-                            <span>{tm.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Client Tag & Assign to Client Dropdown */}
-                  <div style={{ position: 'relative', zIndex: isClientDropdownOpen ? 40 : 'auto' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                    {/* Client Tag */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative', zIndex: isClientDropdownOpen ? 40 : 'auto', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {lang === 'bn' ? 'ক্লায়েন্ট:' : 'Client:'}
+                      </span>
                       {person.clientTag ? (
-                        <span className="badge badge-done" style={{ fontSize: '0.68rem' }}>
+                        <span className="badge badge-done" style={{ fontSize: '0.7rem' }}>
                           <BookUser size={11} /> {person.clientTag}
                         </span>
                       ) : (
@@ -772,72 +828,59 @@ export default function People() {
                           setActiveClientDropdownPersonId(isClientDropdownOpen ? null : person._id);
                         }}
                         className="btn-ghost"
-                        style={{ padding: '3px 6px', borderRadius: 4, fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 2, border: '1px dashed var(--border-subtle)' }}
+                        style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 4, border: '1px dashed var(--border-subtle)' }}
                         title={lang === 'bn' ? 'ক্লায়েন্টের Contact Person হিসেবে ট্যাগ করুন' : 'Tag as Client Contact Person'}
                       >
                         <Tag size={11} />
                         <span>{lang === 'bn' ? 'ট্যাগ' : 'Tag'}</span>
                       </button>
-                    </div>
 
-                    {/* Client Picker Popover */}
-                    {isClientDropdownOpen && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: 'calc(100% + 4px)',
-                          left: 0,
-                          zIndex: 100,
-                          background: 'var(--bg-surface)',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: 'var(--radius-md)',
-                          boxShadow: '0 12px 36px rgba(0,0,0,0.28)',
-                          padding: 8,
-                          minWidth: 210,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 4
-                        }}
-                      >
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', padding: '4px 8px' }}>
-                          {lang === 'bn' ? 'ক্লায়েন্ট নির্বাচন করুন:' : 'Select Client:'}
-                        </span>
-                        {clients.length === 0 ? (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '4px 8px' }}>
-                            {lang === 'bn' ? 'কোনো ক্লায়েন্ট পাওয়া যায়নি' : 'No clients found'}
+                      {/* Client Picker Popover */}
+                      {isClientDropdownOpen && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 'calc(100% + 4px)',
+                            right: 0,
+                            zIndex: 100,
+                            background: 'var(--bg-surface)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-md)',
+                            boxShadow: '0 12px 36px rgba(0,0,0,0.28)',
+                            padding: 8,
+                            minWidth: 210,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4
+                          }}
+                        >
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', padding: '4px 8px' }}>
+                            {lang === 'bn' ? 'ক্লায়েন্ট নির্বাচন করুন:' : 'Select Client:'}
                           </span>
-                        ) : (
-                          clients.map((cl) => (
-                            <button
-                              key={cl._id}
-                              type="button"
-                              onClick={() => {
-                                handleTagToClient(person, cl);
-                                setActiveClientDropdownPersonId(null);
-                              }}
-                              className="btn-ghost"
-                              style={{ textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}
-                            >
-                              <BookUser size={13} color="var(--primary)" />
-                              <span>{cl.name}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePerson(person._id, person.username)}
-                      className="btn-ghost"
-                      style={{ color: 'var(--danger)', padding: 6, borderRadius: 6 }}
-                      title={t.disconnectPerson || 'Remove'}
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                          {clients.length === 0 ? (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '4px 8px' }}>
+                              {lang === 'bn' ? 'কোনো ক্লায়েন্ট পাওয়া যায়নি' : 'No clients found'}
+                            </span>
+                          ) : (
+                            clients.map((cl) => (
+                              <button
+                                key={cl._id}
+                                type="button"
+                                onClick={() => {
+                                  handleTagToClient(person, cl);
+                                  setActiveClientDropdownPersonId(null);
+                                }}
+                                className="btn-ghost"
+                                style={{ textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                              >
+                                <BookUser size={13} color="var(--primary)" />
+                                <span>{cl.name}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

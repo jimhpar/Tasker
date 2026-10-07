@@ -1,5 +1,5 @@
 // BlackBox THC - Tasker Auto Update Checker Service
-export const CURRENT_VERSION = '2.1.0';
+export const CURRENT_VERSION = '3.4.1';
 export const PUBLISHER_NAME = 'BlackBox THC';
 const DEFAULT_REPO = 'BlackBoxTHC/Tasker';
 const LAST_CHECK_KEY = 'tasker_last_update_check';
