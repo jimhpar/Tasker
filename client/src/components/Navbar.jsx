@@ -92,11 +92,11 @@ export default function Navbar({ onOpenAiChat, onOpenSettings, mobileMenuOpen = 
 
   return (
     <header
+      className="app-navbar-header"
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '12px 24px',
         background: 'var(--header-bg)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
@@ -150,25 +150,11 @@ export default function Navbar({ onOpenAiChat, onOpenSettings, mobileMenuOpen = 
           <span style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.5px' }}>
             {t.appName}
           </span>
-          <span
-            style={{
-              marginLeft: 8,
-              fontSize: '0.7rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 6,
-              background: 'var(--primary-glow)',
-              color: 'var(--primary)',
-              textTransform: 'uppercase'
-            }}
-          >
-            {t.appBadge}
-          </span>
         </div>
       </div>
 
       {/* Right Actions: Language + AI Planner + Notification Bell + Profile Menu */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="navbar-right-actions" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {/* Language Switcher Pill (BN / EN) */}
         <button
           type="button"

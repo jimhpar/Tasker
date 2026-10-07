@@ -217,6 +217,7 @@ export default function CommunityChat() {
     >
       {/* Community Header */}
       <div
+        className="community-chat-header"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -433,6 +434,7 @@ export default function CommunityChat() {
 
       {/* Message Input Footer (Images and files strictly disabled in Global Chat) */}
       <form
+        className="community-chat-form"
         onSubmit={handleSendMessage}
         style={{
           padding: '12px 18px',

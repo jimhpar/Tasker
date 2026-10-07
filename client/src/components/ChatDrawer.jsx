@@ -304,6 +304,7 @@ export default function ChatDrawer({ hideTrigger = false }) {
 
   return (
     <div
+      className="chat-floating-drawer"
       style={{
         position: 'fixed',
         bottom: 20,
@@ -325,6 +326,7 @@ export default function ChatDrawer({ hideTrigger = false }) {
     >
       {/* Drawer Header */}
       <div
+        className="chat-drawer-header"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -334,17 +336,27 @@ export default function ChatDrawer({ hideTrigger = false }) {
           borderBottom: '1px solid var(--border-subtle)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
           {activeTarget ? (
             <>
               <button
                 type="button"
                 onClick={handleBackToList}
                 className="btn-ghost"
-                style={{ padding: 4, marginRight: 2 }}
+                style={{
+                  padding: '6px 8px',
+                  marginRight: 4,
+                  borderRadius: 8,
+                  background: 'var(--bg-input)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
                 title="Switch Conversation"
+                aria-label="Back to conversations"
               >
-                <ArrowLeft size={16} />
+                <ArrowLeft size={18} />
               </button>
               <div
                 style={{
@@ -357,7 +369,8 @@ export default function ChatDrawer({ hideTrigger = false }) {
                   justifyContent: 'center',
                   color: 'var(--bg-app)',
                   fontSize: '0.8rem',
-                  fontWeight: 700
+                  fontWeight: 700,
+                  flexShrink: 0
                 }}
               >
                 {activeTarget.type === 'team' ? (
@@ -366,7 +379,7 @@ export default function ChatDrawer({ hideTrigger = false }) {
                   (activeTarget.name?.[0] || 'U').toUpperCase()
                 )}
               </div>
-              <div style={{ maxWidth: 180 }}>
+              <div style={{ minWidth: 0, flex: 1, paddingRight: 6 }}>
                 <h4 style={{ fontWeight: 700, fontSize: '0.85rem', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {activeTarget.name}
                 </h4>
@@ -385,11 +398,38 @@ export default function ChatDrawer({ hideTrigger = false }) {
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <button onClick={() => setIsOpen(false)} className="btn-ghost" style={{ padding: 4 }} title="Minimize">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="btn-ghost"
+            style={{
+              padding: '6px 8px',
+              borderRadius: 8,
+              background: 'var(--bg-input)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Minimize"
+          >
             <ChevronDown size={18} />
           </button>
-          <button onClick={() => setIsOpen(false)} className="btn-ghost" style={{ padding: 4 }} title="Close">
+          <button
+            onClick={() => {
+              setIsOpen(false);
+              setActiveTarget(null);
+            }}
+            className="btn-ghost"
+            style={{
+              padding: '6px 8px',
+              borderRadius: 8,
+              background: 'var(--bg-input)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Close"
+          >
             <X size={18} />
           </button>
         </div>
