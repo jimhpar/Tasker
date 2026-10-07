@@ -4,7 +4,7 @@ export const getApiBase = () => {
     const custom = localStorage.getItem('tasker_custom_api_base');
     if (custom && custom.trim()) return custom.trim();
   } catch {}
-  return (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE) || 'http://127.0.0.1:5000/api';
+  return (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE) || 'https://tasker-backend-ifi9.onrender.com/api';
 };
 
 export const setApiBase = (url) => {
