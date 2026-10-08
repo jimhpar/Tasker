@@ -119,3 +119,36 @@ export function processInboxForUnread(inboxMessages, currentUsername, activeTarg
 
   return updatedList;
 }
+
+export function clearAllChatUnread() {
+  saveUnreadChatTargets([]);
+  window.dispatchEvent(new CustomEvent('tasker_chat_unread_changed', {
+    detail: { unreadTargets: [], hasUnread: false }
+  }));
+}
+
+export function pruneStaleUnreadTargets(validPeople = [], validTeams = []) {
+  const currentUnread = getUnreadChatTargets();
+  if (currentUnread.length === 0) return [];
+
+  const validKeys = new Set();
+  (validPeople || []).forEach(p => {
+    if (p.username) validKeys.add(String(p.username).toLowerCase());
+    if (p._id) validKeys.add(String(p._id).toLowerCase());
+    if (p.id) validKeys.add(String(p.id).toLowerCase());
+  });
+  (validTeams || []).forEach(t => {
+    if (t._id) validKeys.add(String(t._id).toLowerCase());
+    if (t.id) validKeys.add(String(t.id).toLowerCase());
+    if (t.name) validKeys.add(String(t.name).toLowerCase());
+  });
+
+  const cleaned = currentUnread.filter(k => validKeys.has(k.toLowerCase()));
+  if (cleaned.length !== currentUnread.length) {
+    saveUnreadChatTargets(cleaned);
+    window.dispatchEvent(new CustomEvent('tasker_chat_unread_changed', {
+      detail: { unreadTargets: cleaned, hasUnread: cleaned.length > 0 }
+    }));
+  }
+  return cleaned;
+}

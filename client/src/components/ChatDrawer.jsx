@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { teamApi, peopleApi, communityApi, notifyDataChanged } from '../services/api';
-import { getUnreadChatTargets, markTargetAsRead } from '../services/chatNotification';
+import { getUnreadChatTargets, markTargetAsRead, pruneStaleUnreadTargets } from '../services/chatNotification';
 import {
   MessageSquare,
   ChevronDown,
@@ -150,6 +150,7 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
       ]);
       setTeams(tList || []);
       setPeople(pList || []);
+      pruneStaleUnreadTargets(pList || [], tList || []);
     } catch (e) {
       console.error(e);
     }

@@ -29,7 +29,8 @@ import {
   addNotification,
   requestNotificationPermission,
   showPhoneShadeNotification,
-  scheduleTaskAlarms
+  scheduleTaskAlarms,
+  playAlertChime
 } from './services/notificationService';
 import { getUnreadChatTargets, processInboxForUnread } from './services/chatNotification';
 
@@ -180,14 +181,11 @@ function MainApp() {
                 ? `💬 @${msg.senderUsername} (Direct Message)`
                 : `👥 Team Message from @${msg.senderUsername}`;
 
-              const body = msg.content || (msg.audioData ? '🎤 Voice message' : 'New message');
-
-              // In-App Notification & Phone Notification Shade with Lock Screen & Badge
-              addNotification({
-                title,
-                message: body,
-                type: 'chat',
-                playSound: true
+              // Play chime and send phone notification (Lock screen, shade & badge) - NOT in bell icon
+              playAlertChime();
+              showPhoneShadeNotification(title, body, {
+                channelId: 'tasker_messages',
+                badge: 1
               });
             }
           }

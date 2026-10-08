@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
+import Team from '../models/Team.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -152,26 +153,50 @@ router.get('/inbox', async (req, res) => {
   try {
     const authHeader = req.headers['authorization'];
     let myUsername = '';
+    let myUserId = null;
     if (authHeader) {
       await new Promise(resolve => authenticateToken(req, res, resolve));
       myUsername = req.user?.username?.toLowerCase();
+      myUserId = req.user?.userId;
     }
     if (!myUsername && req.query.username) {
       myUsername = req.query.username.toLowerCase().trim();
     }
     if (!myUsername) return res.json([]);
 
+    if (!myUserId) {
+      const u = await User.findOne({ username: myUsername });
+      if (u) myUserId = u._id;
+    }
+
+    // Find all teams where user is owner or member
+    let myTeamIds = [];
+    if (myUserId) {
+      const userTeams = await Team.find({
+        $or: [
+          { ownerId: myUserId },
+          { 'members.userId': myUserId }
+        ]
+      }).select('_id');
+      myTeamIds = userTeams.map(t => t._id.toString());
+    }
+
     const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 30 * 60 * 1000);
     const directRegex = new RegExp(`(^|_)(${myUsername})(_|$)`, 'i');
+
+    const orConditions = [
+      { channelType: 'Direct', channelId: { $regex: directRegex } }
+    ];
+
+    if (myTeamIds.length > 0) {
+      orConditions.push({ channelType: 'Team', channelId: { $in: myTeamIds } });
+    }
 
     const messages = await Message.find({
       channelType: { $in: ['Direct', 'Team'] },
       createdAt: { $gte: since },
       senderUsername: { $ne: myUsername },
-      $or: [
-        { channelType: 'Direct', channelId: { $regex: directRegex } },
-        { channelType: 'Team' }
-      ]
+      $or: orConditions
     })
       .sort({ createdAt: -1 })
       .limit(30);
