@@ -9,7 +9,7 @@
   },
   "plugins": {
     "LocalNotifications": {
-      "smallIcon": "ic_launcher",
+      "smallIcon": "ic_stat_tasker",
       "iconColor": "#3b82f6"
     }
   }

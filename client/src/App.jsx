@@ -180,8 +180,9 @@ function MainApp() {
               const title = isDirect
                 ? `💬 @${msg.senderUsername} (Direct Message)`
                 : `👥 Team Message from @${msg.senderUsername}`;
+              const body = msg.content || (msg.attachments && msg.attachments.length > 0 ? '📎 File attachment' : 'New message received');
 
-              // Play chime and send phone notification (Lock screen, shade & badge) - NOT in bell icon
+              // Play chime and send phone notification (Lock screen, shade, banner & badge) - NOT in bell icon
               playAlertChime();
               showPhoneShadeNotification(title, body, {
                 channelId: 'tasker_messages',
@@ -283,6 +284,8 @@ function MainApp() {
       <Navbar
         onOpenAiChat={() => setShowAiModal(true)}
         onOpenSettings={() => setShowSettingsModal(true)}
+        onToggleChat={() => setShowChatDrawer(prev => !prev)}
+        hasChatUnread={hasChatUnread}
         mobileMenuOpen={mobileMenuOpen}
         onToggleMobileMenu={() => setMobileMenuOpen(prev => !prev)}
       />
@@ -299,6 +302,12 @@ function MainApp() {
           teamRequestsCount={teamRequestsCount}
           pendingConnectionRequestsCount={pendingConnectionRequestsCount}
           hasGlobalUnread={hasGlobalUnread}
+          hasChatUnread={hasChatUnread}
+          isChatOpen={showChatDrawer}
+          onToggleChat={() => {
+            setMobileMenuOpen(false);
+            setShowChatDrawer(prev => !prev);
+          }}
           mobileOpen={mobileMenuOpen}
           onCloseMobile={() => setMobileMenuOpen(false)}
           onOpenAiChat={() => {

@@ -24,7 +24,8 @@ import {
   CheckCheck,
   Trash2,
   Menu,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 import {
   getStoredNotifications,
@@ -34,7 +35,7 @@ import {
 } from '../services/notificationService';
 import { getGeminiKey } from '../services/gemini';
 
-export default function Navbar({ onOpenAiChat, onOpenSettings, mobileMenuOpen = false, onToggleMobileMenu }) {
+export default function Navbar({ onOpenAiChat, onOpenSettings, onToggleChat, hasChatUnread = false, mobileMenuOpen = false, onToggleMobileMenu }) {
   const { user, logout, theme, setTheme } = useAuth();
   const { lang, toggleLanguage, t } = useLanguage();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -220,6 +221,38 @@ export default function Navbar({ onOpenAiChat, onOpenSettings, mobileMenuOpen = 
               boxShadow: hasGeminiKey ? '0 0 8px #22c55e' : 'none'
             }}
           />
+        </button>
+
+        {/* Desktop Chat Launcher */}
+        <button
+          type="button"
+          onClick={onToggleChat}
+          className="btn btn-secondary desktop-only"
+          style={{
+            position: 'relative',
+            padding: '8px 14px',
+            borderRadius: 'var(--radius-full)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
+          }}
+          title={lang === 'bn' ? 'টিম ও ডিরেক্ট চ্যাট' : 'Chat & Messages'}
+        >
+          <MessageSquare size={16} color="var(--primary)" />
+          <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>
+            {lang === 'bn' ? 'চ্যাট' : 'Chat'}
+          </span>
+          {hasChatUnread && (
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: '#ef4444',
+                boxShadow: '0 0 6px rgba(239, 68, 68, 0.7)'
+              }}
+            />
+          )}
         </button>
 
         {/* Notification Bell with Badge & Dropdown */}

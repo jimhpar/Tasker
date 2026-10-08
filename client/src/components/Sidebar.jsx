@@ -18,7 +18,8 @@ import {
   Sliders,
   Sun,
   Moon,
-  LogOut
+  LogOut,
+  MessageSquare
 } from 'lucide-react';
 import { getGeminiKey } from '../services/gemini';
 
@@ -28,6 +29,9 @@ export default function Sidebar({
   teamRequestsCount = 0,
   pendingConnectionRequestsCount = 0,
   hasGlobalUnread = false,
+  hasChatUnread = false,
+  isChatOpen = false,
+  onToggleChat,
   mobileOpen = false,
   onCloseMobile,
   onOpenAiChat,
@@ -56,6 +60,14 @@ export default function Sidebar({
       sublabel: t.calendarSub,
       icon: Calendar,
       isQuickAccess: true
+    },
+    {
+      id: 'chat',
+      label: lang === 'bn' ? 'টিম ও সরাসরি চ্যাট' : 'Chat & Messages',
+      sublabel: lang === 'bn' ? 'টিম ও সহকর্মীদের সাথে কথা বলুন' : 'Direct & Team Messages',
+      icon: MessageSquare,
+      hasDot: hasChatUnread,
+      isChatAction: true
     },
     {
       id: 'people',
@@ -251,12 +263,18 @@ export default function Sidebar({
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = item.isChatAction ? isChatOpen : activeTab === item.id;
 
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.isChatAction) {
+                    onToggleChat?.();
+                  } else {
+                    setActiveTab(item.id);
+                  }
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

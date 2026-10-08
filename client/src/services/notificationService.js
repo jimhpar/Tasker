@@ -131,7 +131,7 @@ export function getNotificationId(taskId, suffix = 0) {
   return Math.abs(hash % 2147483640) + 1;
 }
 
-// Show native phone notification on Android (lock screen, notification shade, and icon badge) & fallback on desktop
+// Show native phone notification on Android (lock screen, notification shade, banner and icon badge) & fallback on desktop
 export async function showPhoneShadeNotification(title, body, options = {}) {
   const opts = (typeof options === 'object' && options !== null)
     ? options
@@ -143,9 +143,16 @@ export async function showPhoneShadeNotification(title, body, options = {}) {
 
   try {
     if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+      try {
+        const perm = await LocalNotifications.checkPermissions();
+        if (perm.display !== 'granted') {
+          await LocalNotifications.requestPermissions();
+        }
+      } catch {}
+
       const payload = {
-        title: title,
-        body: body,
+        title: title || 'Tasker',
+        body: body || '',
         id: id,
         channelId: channelId,
         smallIcon: 'ic_stat_tasker',
@@ -295,12 +302,19 @@ export function clearAllNotifications() {
   clearDeliveredPhoneNotifications();
 }
 
-// Pre-schedule future task alarms into Android OS AlarmManager (fires on Lock Screen even in sleep/Doze)
+// Pre-schedule future task alarms into Android OS AlarmManager (fires on Lock Screen, Banner, Shade & Badge)
 export async function scheduleTaskAlarms(tasks) {
   if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
   if (!Array.isArray(tasks) || tasks.length === 0) return;
 
   try {
+    try {
+      const status = await LocalNotifications.checkPermissions();
+      if (status.display !== 'granted') {
+        await LocalNotifications.requestPermissions();
+      }
+    } catch {}
+
     const notificationsToSchedule = [];
     const now = Date.now();
 
@@ -335,6 +349,28 @@ export async function scheduleTaskAlarms(tasks) {
               }
             });
           }
+        }
+      } else if (task.status === 'To Do' && task.scheduledDate) {
+        // Morning Reminder for tasks without explicit time (9:00 AM on scheduled date)
+        const schedDate = new Date(task.scheduledDate);
+        schedDate.setHours(9, 0, 0, 0);
+        if (schedDate.getTime() > now + 30000) {
+          notificationsToSchedule.push({
+            id: getNotificationId(task._id, 4),
+            title: '📋 Scheduled Task: আজকের কাজ',
+            body: `"${title}" কাজটির জন্য আজকের দিন নির্ধারিত রয়েছে।`,
+            channelId: 'tasker_tasks',
+            smallIcon: 'ic_stat_tasker',
+            largeIcon: 'ic_launcher',
+            iconColor: '#3b82f6',
+            foreground: true,
+            badge: 1,
+            autoCancel: true,
+            schedule: {
+              at: schedDate,
+              allowWhileIdle: true
+            }
+          });
         }
       }
 
