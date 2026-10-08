@@ -78,7 +78,15 @@ const taskSchema = new mongoose.Schema({
       fileType: String,
       addedAt: { type: Date, default: Date.now }
     }
-  ]
+  ],
+  isTrash: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: {
+    type: Date,
+    default: null
+  }
 }, {
   timestamps: true
 });

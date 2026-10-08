@@ -11,9 +11,15 @@ router.use(authenticateToken);
 // Get all tasks with flexible filters (workspaceType, date, client, taskType)
 router.get('/', async (req, res) => {
   try {
-    const { workspaceType, date, status, clientId, taskTypeId, teamId, search } = req.query;
+    const { workspaceType, date, status, clientId, taskTypeId, teamId, search, isTrash } = req.query;
 
     let query = {};
+    if (isTrash === 'true') {
+      query.isTrash = true;
+    } else {
+      query.isTrash = { $ne: true };
+    }
+
     if (workspaceType === 'Team') {
       query.workspaceType = 'Team';
       if (teamId) {
@@ -85,6 +91,7 @@ router.get('/calendar-summary', async (req, res) => {
 
     const tasks = await Task.find({
       userId: req.user.userId,
+      isTrash: { $ne: true },
       scheduledDate: { $gte: startOfMonth, $lte: endOfMonth }
     }).select('title status priority scheduledDate');
 
@@ -203,12 +210,52 @@ router.post('/:id/toggle-workspace', async (req, res) => {
   }
 });
 
-// Delete Task
-router.delete('/:id', async (req, res) => {
+// Empty all trash for user (Must be defined before /:id routes)
+router.delete('/trash/empty', async (req, res) => {
+  try {
+    await Task.deleteMany({ userId: req.user.userId, isTrash: true });
+    res.json({ message: 'Trash emptied successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to empty trash' });
+  }
+});
+
+// Restore task from trash
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.userId },
+      { $set: { isTrash: false, deletedAt: null } },
+      { new: true }
+    );
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    res.json({ message: 'Task restored successfully', task });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to restore task' });
+  }
+});
+
+// Permanently delete task
+router.delete('/:id/permanent', async (req, res) => {
   try {
     const deleted = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user.userId });
     if (!deleted) return res.status(404).json({ error: 'Task not found' });
-    res.json({ message: 'Task deleted successfully' });
+    res.json({ message: 'Task permanently deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete task permanently' });
+  }
+});
+
+// Move Task to Trash (Soft delete)
+router.delete('/:id', async (req, res) => {
+  try {
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.userId },
+      { $set: { isTrash: true, deletedAt: new Date() } },
+      { new: true }
+    );
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    res.json({ message: 'Task moved to trash', task });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete task' });
   }

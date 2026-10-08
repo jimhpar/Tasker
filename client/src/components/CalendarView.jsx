@@ -14,11 +14,12 @@ import {
   Building,
   ExternalLink,
   Edit3,
+  Trash2,
   Paperclip
 } from 'lucide-react';
 import MediaViewerModal from './MediaViewerModal';
 
-export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate, onEditTask }) {
+export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate, onEditTask, onDeleteTask }) {
   const { t, lang } = useLanguage();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -100,6 +101,15 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
   const handleToggleStatus = (taskItem) => {
     const newStatus = taskItem.status === 'Done' ? 'To Do' : 'Done';
     onUpdateTask(taskItem._id, { status: newStatus });
+  };
+
+  const handleDeleteClick = (taskItem) => {
+    const confirmMsg = lang === 'bn'
+      ? `আপনি কি নিশ্চিত যে "${taskItem.title}" টাস্কটি ট্র্যাশে পাঠাতে চান?`
+      : `Are you sure you want to move "${taskItem.title}" to Trash?`;
+    if (window.confirm(confirmMsg)) {
+      onDeleteTask && onDeleteTask(taskItem._id);
+    }
   };
 
   const isPast = (dateObj) => {
@@ -402,16 +412,32 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
                       </div>
                     </div>
 
-                    {/* Edit Task Button */}
-                    <button
-                      type="button"
-                      onClick={() => onEditTask && onEditTask(taskItem)}
-                      className="btn-ghost"
-                      style={{ padding: 6, borderRadius: 6, color: 'var(--text-muted)', flexShrink: 0 }}
-                      title="Edit task details, upload files, links"
-                    >
-                      <Edit3 size={15} />
-                    </button>
+                    {/* Action Buttons: Edit & Delete */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => onEditTask && onEditTask(taskItem)}
+                        className="btn-ghost"
+                        style={{ padding: 6, borderRadius: 6, color: 'var(--text-muted)' }}
+                        title={lang === 'bn' ? 'টাস্ক এডিট করুন' : 'Edit task details'}
+                        aria-label="Edit task"
+                      >
+                        <Edit3 size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(taskItem);
+                        }}
+                        className="btn-ghost"
+                        style={{ padding: 6, borderRadius: 6, color: '#ef4444' }}
+                        title={lang === 'bn' ? 'টাস্কটি ট্র্যাশে পাঠান' : 'Move task to Trash'}
+                        aria-label="Delete task"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}

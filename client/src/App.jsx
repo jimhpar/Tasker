@@ -15,6 +15,7 @@ import MyTeam from './components/MyTeam';
 import CommunityChat from './components/CommunityChat';
 import ClientDictionary from './components/ClientDictionary';
 import TaskDirectory from './components/TaskDirectory';
+import TrashView from './components/TrashView';
 import TaskModal from './components/TaskModal';
 import AiPlannerModal from './components/AiPlannerModal';
 import SettingsModal from './components/SettingsModal';
@@ -254,6 +255,15 @@ function MainApp() {
     }
   };
 
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await taskApi.delete(taskId);
+      setTasks((prev) => prev.filter((item) => item._id !== taskId));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-app)', color: 'var(--text-main)' }}>
@@ -322,6 +332,7 @@ function MainApp() {
               onUpdateTask={handleUpdateTask}
               onOpenNewTaskForDate={handleOpenTaskModal}
               onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
             />
           </div>
 
@@ -348,6 +359,10 @@ function MainApp() {
 
           <div style={{ display: activeTab === 'task-directory' ? 'block' : 'none' }}>
             <TaskDirectory />
+          </div>
+
+          <div style={{ display: activeTab === 'trash' ? 'block' : 'none' }}>
+            <TrashView onTasksUpdated={loadTasks} />
           </div>
 
           {/* Admin Management Views */}

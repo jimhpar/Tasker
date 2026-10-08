@@ -396,10 +396,17 @@ export const taskApi = {
     try {
       const q = new URLSearchParams(params).toString();
       const res = await request(`/tasks?${q}`);
-      saveLocalTasks(res);
+      if (params.isTrash !== 'true') {
+        saveLocalTasks(res);
+      }
       list = res;
     } catch {
       list = getLocalTasks();
+      if (params.isTrash === 'true') {
+        list = list.filter(t => t.isTrash === true);
+      } else {
+        list = list.filter(t => !t.isTrash);
+      }
       if (params.workspaceType) {
         list = list.filter(t => t.workspaceType === params.workspaceType);
       }
@@ -505,14 +512,63 @@ export const taskApi = {
   },
 
   async delete(id) {
+    let res = null;
     try {
-      await request(`/tasks/${id}`, { method: 'DELETE' });
+      res = await request(`/tasks/${id}`, { method: 'DELETE' });
+    } catch {}
+    let list = getLocalTasks();
+    const idx = list.findIndex(t => t._id === id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], isTrash: true, deletedAt: new Date().toISOString() };
+      saveLocalTasks(list);
+    }
+    notifyDataChanged('tasks', { action: 'trash', id });
+    return res || { message: 'Moved to trash' };
+  },
+
+  async moveToTrash(id) {
+    return this.delete(id);
+  },
+
+  async restore(id) {
+    let res = null;
+    try {
+      res = await request(`/tasks/${id}/restore`, { method: 'POST' });
+    } catch {}
+    let list = getLocalTasks();
+    const idx = list.findIndex(t => t._id === id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], isTrash: false, deletedAt: null };
+      saveLocalTasks(list);
+    }
+    notifyDataChanged('tasks', { action: 'restore', id });
+    return res || { message: 'Restored from trash' };
+  },
+
+  async deletePermanent(id) {
+    try {
+      await request(`/tasks/${id}/permanent`, { method: 'DELETE' });
     } catch {}
     let list = getLocalTasks();
     list = list.filter(t => t._id !== id);
     saveLocalTasks(list);
-    notifyDataChanged('tasks', { action: 'delete', id });
-    return { message: 'Deleted' };
+    notifyDataChanged('tasks', { action: 'delete_permanent', id });
+    return { message: 'Permanently deleted' };
+  },
+
+  async emptyTrash() {
+    try {
+      await request('/tasks/trash/empty', { method: 'DELETE' });
+    } catch {}
+    let list = getLocalTasks();
+    list = list.filter(t => !t.isTrash);
+    saveLocalTasks(list);
+    notifyDataChanged('tasks', { action: 'empty_trash' });
+    return { message: 'Trash emptied' };
+  },
+
+  async getTrash() {
+    return this.getAll({ isTrash: 'true' });
   }
 };
 

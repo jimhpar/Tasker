@@ -29,6 +29,8 @@ export const translations = {
     clientSub: 'ক্লায়েন্ট ও কাজের হিসাব',
     taskDirectory: 'টাস্ক ক্যাটাগরি',
     taskDirectorySub: 'ব্যক্তিগত ও টিমভিত্তিক টাস্কের ধরন',
+    trash: 'ট্র্যাশ বিন',
+    trashSub: 'মুছে ফেলা টাস্ক ও পুনরুদ্ধার',
 
     // Dashboard
     personal: 'ব্যক্তিগত',
@@ -247,6 +249,8 @@ export const translations = {
     clientSub: 'Clients & Work Logs',
     taskDirectory: 'Task Catagory',
     taskDirectorySub: 'Manage Personal & Team Task Types',
+    trash: 'Trash Bin',
+    trashSub: 'Deleted tasks & restore',
 
     // Dashboard
     personal: 'Personal',

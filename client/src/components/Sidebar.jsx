@@ -9,6 +9,7 @@ import {
   Globe,
   BookUser,
   FolderTree,
+  Trash2,
   ChevronRight,
   Shield,
   Layers,
@@ -89,6 +90,12 @@ export default function Sidebar({
       label: t.taskDirectory,
       sublabel: t.taskDirectorySub,
       icon: FolderTree
+    },
+    {
+      id: 'trash',
+      label: t.trash || 'Trash',
+      sublabel: t.trashSub || 'Deleted tasks & restore',
+      icon: Trash2
     }
   ];
 
