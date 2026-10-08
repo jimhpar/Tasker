@@ -46,8 +46,8 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
       return 'teams';
     }
   });
-  const [teams, setTeams] = useState([]);
-  const [people, setPeople] = useState([]);
+  const [teams, setTeams] = useState(() => (teamApi.getLocalTeams ? teamApi.getLocalTeams() : []));
+  const [people, setPeople] = useState(() => (peopleApi.getLocalPeople ? peopleApi.getLocalPeople() : []));
   const [unreadTargets, setUnreadTargets] = useState(() => getUnreadChatTargets());
 
   useEffect(() => {
@@ -143,14 +143,22 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
   }, [activeTarget]);
 
   const loadContacts = async () => {
+    // 0ms instant display from cache
+    const localTeams = teamApi.getLocalTeams ? teamApi.getLocalTeams() : [];
+    const localPeople = peopleApi.getLocalPeople ? peopleApi.getLocalPeople() : [];
+    if (localTeams.length > 0) setTeams(localTeams);
+    if (localPeople.length > 0) setPeople(localPeople);
+    pruneStaleUnreadTargets(localPeople, localTeams);
+
+    // Background network revalidation
     try {
       const [tList, pList] = await Promise.all([
         teamApi.getTeams().catch(() => []),
         peopleApi.getPeople().catch(() => [])
       ]);
-      setTeams(tList || []);
-      setPeople(pList || []);
-      pruneStaleUnreadTargets(pList || [], tList || []);
+      if (Array.isArray(tList) && tList.length > 0) setTeams(tList);
+      if (Array.isArray(pList) && pList.length > 0) setPeople(pList);
+      pruneStaleUnreadTargets(pList || localPeople, tList || localTeams);
     } catch (e) {
       console.error(e);
     }

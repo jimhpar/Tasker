@@ -23,9 +23,11 @@ const API_BASE = getApiBase();
 const TOKEN_KEY = 'tasker_auth_token';
 const USER_KEY = 'tasker_auth_user';
 const TASKS_CACHE_KEY = 'tasker_local_tasks';
+const TRASH_TASKS_CACHE_KEY = 'tasker_trash_tasks_v1';
 const CLIENTS_CACHE_KEY = 'tasker_local_clients';
 const TASK_TYPES_CACHE_KEY = 'tasker_local_task_types';
 const TEAMS_CACHE_KEY = 'tasker_local_teams';
+const TEAM_MEMBERS_CACHE_PREFIX = 'tasker_local_team_members_';
 const TEAM_REQUESTS_CACHE_KEY = 'tasker_local_team_requests';
 const ACTIVE_TEAM_KEY = 'tasker_active_team_id';
 const PEOPLE_CACHE_KEY = 'tasker_connected_people';
@@ -354,6 +356,23 @@ const saveLocalTasks = (tasks) => {
   localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(tasks));
 };
 
+export const getLocalTrash = () => {
+  const t = localStorage.getItem(TRASH_TASKS_CACHE_KEY);
+  if (t) {
+    try {
+      const parsed = JSON.parse(t);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+  return [];
+};
+
+export const saveLocalTrash = (tasks) => {
+  try {
+    localStorage.setItem(TRASH_TASKS_CACHE_KEY, JSON.stringify(tasks || []));
+  } catch {}
+};
+
 export const isTaskOwnedByCurrentUser = (task, currentUser) => {
   if (!task) return false;
   if (task.workspaceType !== 'Personal') return true;
@@ -391,31 +410,43 @@ export const isTaskOwnedByCurrentUser = (task, currentUser) => {
 };
 
 export const taskApi = {
+  getLocalTasks() {
+    const currentUser = getStoredUser();
+    return getLocalTasks().filter(t => isTaskOwnedByCurrentUser(t, currentUser));
+  },
+
+  getLocalTrash() {
+    const currentUser = getStoredUser();
+    return getLocalTrash().filter(t => isTaskOwnedByCurrentUser(t, currentUser));
+  },
+
   async getAll(params = {}) {
+    if (params.isTrash === 'true') {
+      return this.getTrash();
+    }
     let list = [];
     try {
       const q = new URLSearchParams(params).toString();
       const res = await request(`/tasks?${q}`);
-      if (params.isTrash !== 'true') {
+      if (Array.isArray(res)) {
         saveLocalTasks(res);
+        list = res;
+      } else {
+        list = getLocalTasks();
       }
-      list = res;
     } catch {
       list = getLocalTasks();
-      if (params.isTrash === 'true') {
-        list = list.filter(t => t.isTrash === true);
-      } else {
-        list = list.filter(t => !t.isTrash);
-      }
-      if (params.workspaceType) {
-        list = list.filter(t => t.workspaceType === params.workspaceType);
-      }
-      if (params.teamId) {
-        list = list.filter(t => !t.teamId || t.teamId === params.teamId || t.teamId?._id === params.teamId);
-      }
-      if (params.status) {
-        list = list.filter(t => t.status === params.status);
-      }
+    }
+
+    list = list.filter(t => !t.isTrash);
+    if (params.workspaceType) {
+      list = list.filter(t => t.workspaceType === params.workspaceType);
+    }
+    if (params.teamId) {
+      list = list.filter(t => !t.teamId || t.teamId === params.teamId || t.teamId?._id === params.teamId);
+    }
+    if (params.status) {
+      list = list.filter(t => t.status === params.status);
     }
 
     const currentUser = getStoredUser();
@@ -512,17 +543,37 @@ export const taskApi = {
   },
 
   async delete(id) {
+    // 1. Optimistic 0ms local update
+    const activeTasks = getLocalTasks();
+    const targetTask = activeTasks.find(t => t._id === id);
+    const updatedActive = activeTasks.filter(t => t._id !== id);
+    saveLocalTasks(updatedActive);
+
+    const trashedItem = {
+      ...(targetTask || { _id: id, title: 'Task' }),
+      isTrash: true,
+      deletedAt: new Date().toISOString()
+    };
+    const currentTrash = getLocalTrash().filter(t => t._id !== id);
+    saveLocalTrash([trashedItem, ...currentTrash]);
+
+    notifyDataChanged('tasks', { action: 'trash', id, task: trashedItem });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tasker_trash_updated', { detail: { action: 'trash', id } }));
+      window.dispatchEvent(new CustomEvent('tasker_tasks_updated', { detail: { action: 'trash', id } }));
+    }
+
+    // 2. Sync with remote server
     let res = null;
     try {
       res = await request(`/tasks/${id}`, { method: 'DELETE' });
-    } catch {}
-    let list = getLocalTasks();
-    const idx = list.findIndex(t => t._id === id);
-    if (idx !== -1) {
-      list[idx] = { ...list[idx], isTrash: true, deletedAt: new Date().toISOString() };
-      saveLocalTasks(list);
+      if (res?.task) {
+        const syncedTrash = getLocalTrash().map(t => t._id === id ? { ...t, ...res.task } : t);
+        saveLocalTrash(syncedTrash);
+      }
+    } catch (e) {
+      console.warn('Delete task server sync warning:', e);
     }
-    notifyDataChanged('tasks', { action: 'trash', id });
     return res || { message: 'Moved to trash' };
   },
 
@@ -531,44 +582,89 @@ export const taskApi = {
   },
 
   async restore(id) {
+    // 1. Optimistic 0ms local update
+    const currentTrash = getLocalTrash();
+    const targetTask = currentTrash.find(t => t._id === id);
+    saveLocalTrash(currentTrash.filter(t => t._id !== id));
+
+    const restoredItem = {
+      ...(targetTask || { _id: id }),
+      isTrash: false,
+      deletedAt: null
+    };
+    const activeTasks = getLocalTasks().filter(t => t._id !== id);
+    saveLocalTasks([restoredItem, ...activeTasks]);
+
+    notifyDataChanged('tasks', { action: 'restore', id, task: restoredItem });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tasker_trash_updated', { detail: { action: 'restore', id } }));
+      window.dispatchEvent(new CustomEvent('tasker_tasks_updated', { detail: { action: 'restore', id } }));
+    }
+
+    // 2. Sync with remote server
     let res = null;
     try {
       res = await request(`/tasks/${id}/restore`, { method: 'POST' });
-    } catch {}
-    let list = getLocalTasks();
-    const idx = list.findIndex(t => t._id === id);
-    if (idx !== -1) {
-      list[idx] = { ...list[idx], isTrash: false, deletedAt: null };
-      saveLocalTasks(list);
+      if (res?.task) {
+        const syncedActive = getLocalTasks().map(t => t._id === id ? { ...t, ...res.task } : t);
+        saveLocalTasks(syncedActive);
+      }
+    } catch (e) {
+      console.warn('Restore task server sync warning:', e);
     }
-    notifyDataChanged('tasks', { action: 'restore', id });
     return res || { message: 'Restored from trash' };
   },
 
   async deletePermanent(id) {
+    // 1. Optimistic 0ms local update
+    const currentTrash = getLocalTrash().filter(t => t._id !== id);
+    saveLocalTrash(currentTrash);
+    saveLocalTasks(getLocalTasks().filter(t => t._id !== id));
+
+    notifyDataChanged('tasks', { action: 'delete_permanent', id });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tasker_trash_updated', { detail: { action: 'delete_permanent', id } }));
+      window.dispatchEvent(new CustomEvent('tasker_tasks_updated', { detail: { action: 'delete_permanent', id } }));
+    }
+
+    // 2. Sync with server
     try {
       await request(`/tasks/${id}/permanent`, { method: 'DELETE' });
-    } catch {}
-    let list = getLocalTasks();
-    list = list.filter(t => t._id !== id);
-    saveLocalTasks(list);
-    notifyDataChanged('tasks', { action: 'delete_permanent', id });
+    } catch (e) {
+      console.warn('Permanent delete server sync warning:', e);
+    }
     return { message: 'Permanently deleted' };
   },
 
   async emptyTrash() {
+    saveLocalTrash([]);
+    notifyDataChanged('tasks', { action: 'empty_trash' });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tasker_trash_updated', { detail: { action: 'empty_trash' } }));
+      window.dispatchEvent(new CustomEvent('tasker_tasks_updated', { detail: { action: 'empty_trash' } }));
+    }
+
     try {
       await request('/tasks/trash/empty', { method: 'DELETE' });
-    } catch {}
-    let list = getLocalTasks();
-    list = list.filter(t => !t.isTrash);
-    saveLocalTasks(list);
-    notifyDataChanged('tasks', { action: 'empty_trash' });
+    } catch (e) {
+      console.warn('Empty trash server sync warning:', e);
+    }
     return { message: 'Trash emptied' };
   },
 
   async getTrash() {
-    return this.getAll({ isTrash: 'true' });
+    let list = getLocalTrash();
+    try {
+      const res = await request('/tasks?isTrash=true');
+      if (Array.isArray(res)) {
+        saveLocalTrash(res);
+        list = res;
+      }
+    } catch (e) {
+      console.warn('Live trash fetch fallback to local:', e);
+    }
+    const currentUser = getStoredUser();
+    return list.filter(t => isTaskOwnedByCurrentUser(t, currentUser));
   }
 };
 
@@ -748,6 +844,35 @@ const setLocalRequests = (reqs) => {
 };
 
 export const teamApi = {
+  getLocalTeams() {
+    return getLocalTeams();
+  },
+
+  getLocalRequests() {
+    return getLocalRequests();
+  },
+
+  getLocalMembers(teamId) {
+    const activeId = teamId || this.getActiveTeamId();
+    if (!activeId) return null;
+    try {
+      const cached = localStorage.getItem(`${TEAM_MEMBERS_CACHE_PREFIX}${activeId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed) return parsed;
+      }
+    } catch {}
+    const teams = getLocalTeams();
+    return teams.find(t => t._id === activeId) || null;
+  },
+
+  setLocalMembers(teamId, data) {
+    if (!teamId || !data) return;
+    try {
+      localStorage.setItem(`${TEAM_MEMBERS_CACHE_PREFIX}${teamId}`, JSON.stringify(data));
+    } catch {}
+  },
+
   getActiveTeamId() {
     const active = localStorage.getItem(ACTIVE_TEAM_KEY);
     if (active) return active;
@@ -840,6 +965,11 @@ export const teamApi = {
       const teams = await request('/teams');
       if (Array.isArray(teams)) {
         setLocalTeams(teams);
+        teams.forEach(t => {
+          if (t._id && t.members) {
+            this.setLocalMembers(t._id, t);
+          }
+        });
         return teams;
       }
       return getLocalTeams();
@@ -913,11 +1043,13 @@ export const teamApi = {
     const activeId = teamId || this.getActiveTeamId();
     try {
       const url = activeId ? `/teams/${activeId}/members` : '/teams/members';
-      return await request(url);
+      const res = await request(url);
+      if (res && activeId) {
+        this.setLocalMembers(activeId, res);
+      }
+      return res;
     } catch {
-      const teams = getLocalTeams();
-      const current = teams.find(t => t._id === activeId) || teams[0];
-      return current || null;
+      return this.getLocalMembers(activeId);
     }
   },
 
@@ -1374,6 +1506,10 @@ const setLocalPeople = (list) => {
 };
 
 export const peopleApi = {
+  getLocalPeople() {
+    return getLocalPeople();
+  },
+
   async getPeople() {
     const local = getLocalPeople();
     const currentUser = getStoredUser();

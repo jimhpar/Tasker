@@ -16,24 +16,33 @@ router.get('/', async (req, res) => {
     let query = {};
     if (isTrash === 'true') {
       query.isTrash = true;
-    } else {
-      query.isTrash = { $ne: true };
-    }
-
-    if (workspaceType === 'Team') {
-      query.workspaceType = 'Team';
-      if (teamId) {
-        query.teamId = teamId;
+      if (req.user.role !== 'admin' && req.user.username !== 'zim' && req.user.username !== 'zim_founder') {
+        query.$or = [
+          { userId: req.user.userId },
+          { createdBy: req.user.username },
+          { assignedTo: req.user.userId }
+        ];
       }
-      query.$or = [
-        { userId: req.user.userId },
-        { assignedTo: req.user.userId },
-        ...(teamId ? [{ teamId }] : [])
-      ];
-    } else {
-      query.userId = req.user.userId;
       if (workspaceType) {
         query.workspaceType = workspaceType;
+      }
+    } else {
+      query.isTrash = { $ne: true };
+      if (workspaceType === 'Team') {
+        query.workspaceType = 'Team';
+        if (teamId) {
+          query.teamId = teamId;
+        }
+        query.$or = [
+          { userId: req.user.userId },
+          { assignedTo: req.user.userId },
+          ...(teamId ? [{ teamId }] : [])
+        ];
+      } else {
+        query.userId = req.user.userId;
+        if (workspaceType) {
+          query.workspaceType = workspaceType;
+        }
       }
     }
 
@@ -210,10 +219,25 @@ router.post('/:id/toggle-workspace', async (req, res) => {
   }
 });
 
+const getTaskAccessFilter = (user, extra = {}) => {
+  if (user?.role === 'admin' || user?.username === 'zim' || user?.username === 'zim_founder') {
+    return { ...extra };
+  }
+  return {
+    ...extra,
+    $or: [
+      { userId: user.userId },
+      { createdBy: user.username },
+      { assignedTo: user.userId }
+    ]
+  };
+};
+
 // Empty all trash for user (Must be defined before /:id routes)
 router.delete('/trash/empty', async (req, res) => {
   try {
-    await Task.deleteMany({ userId: req.user.userId, isTrash: true });
+    const filter = getTaskAccessFilter(req.user, { isTrash: true });
+    await Task.deleteMany(filter);
     res.json({ message: 'Trash emptied successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to empty trash' });
@@ -223,8 +247,9 @@ router.delete('/trash/empty', async (req, res) => {
 // Restore task from trash
 router.post('/:id/restore', async (req, res) => {
   try {
+    const filter = getTaskAccessFilter(req.user, { _id: req.params.id });
     const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.userId },
+      filter,
       { $set: { isTrash: false, deletedAt: null } },
       { new: true }
     );
@@ -238,7 +263,8 @@ router.post('/:id/restore', async (req, res) => {
 // Permanently delete task
 router.delete('/:id/permanent', async (req, res) => {
   try {
-    const deleted = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user.userId });
+    const filter = getTaskAccessFilter(req.user, { _id: req.params.id });
+    const deleted = await Task.findOneAndDelete(filter);
     if (!deleted) return res.status(404).json({ error: 'Task not found' });
     res.json({ message: 'Task permanently deleted' });
   } catch (err) {
@@ -249,8 +275,9 @@ router.delete('/:id/permanent', async (req, res) => {
 // Move Task to Trash (Soft delete)
 router.delete('/:id', async (req, res) => {
   try {
+    const filter = getTaskAccessFilter(req.user, { _id: req.params.id });
     const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.userId },
+      filter,
       { $set: { isTrash: true, deletedAt: new Date() } },
       { new: true }
     );

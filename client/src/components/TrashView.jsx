@@ -15,32 +15,52 @@ import {
   FolderTree
 } from 'lucide-react';
 
-export default function TrashView({ onTasksUpdated }) {
+export default function TrashView({ onTasksUpdated, isActive }) {
   const { t, lang } = useLanguage();
 
-  const [trashedTasks, setTrashedTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [trashedTasks, setTrashedTasks] = useState(() => {
+    return (taskApi.getLocalTrash ? taskApi.getLocalTrash() : []) || [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const local = taskApi.getLocalTrash ? taskApi.getLocalTrash() : [];
+    return local.length === 0;
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [workspaceFilter, setWorkspaceFilter] = useState('All'); // 'All' | 'Personal' | 'Team'
   const [actionMessage, setActionMessage] = useState(null);
 
   const loadTrash = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await taskApi.getTrash();
       setTrashedTasks(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to load trash tasks:', e);
+      if (taskApi.getLocalTrash) {
+        setTrashedTasks(taskApi.getLocalTrash());
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadTrash();
+    if (isActive !== false) {
+      loadTrash();
+    }
+  }, [isActive, loadTrash]);
+
+  useEffect(() => {
     const handleSync = () => loadTrash();
     window.addEventListener('tasker_data_changed', handleSync);
-    return () => window.removeEventListener('tasker_data_changed', handleSync);
+    window.addEventListener('tasker_tasks_updated', handleSync);
+    window.addEventListener('tasker_trash_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('tasker_data_changed', handleSync);
+      window.removeEventListener('tasker_tasks_updated', handleSync);
+      window.removeEventListener('tasker_trash_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, [loadTrash]);
 
   const showToast = (msg) => {

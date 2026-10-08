@@ -359,7 +359,7 @@ function MainApp() {
           </div>
 
           <div style={{ display: activeTab === 'trash' ? 'block' : 'none' }}>
-            <TrashView onTasksUpdated={loadTasks} />
+            <TrashView onTasksUpdated={loadTasks} isActive={activeTab === 'trash'} />
           </div>
 
           {/* Admin Management Views */}

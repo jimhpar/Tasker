@@ -25,11 +25,18 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
   const { t, lang } = useLanguage();
   const { user } = useAuth();
 
-  // Multi-team state
-  const [teams, setTeams] = useState([]);
-  const [activeTeamId, setActiveTeamId] = useState(teamApi.getActiveTeamId());
-  const [activeTeam, setActiveTeam] = useState(null);
-  const [requests, setRequests] = useState([]);
+  // Multi-team state: 0ms instant render from cache
+  const [teams, setTeams] = useState(() => teamApi.getLocalTeams());
+  const [activeTeamId, setActiveTeamId] = useState(() => teamApi.getActiveTeamId());
+  const [activeTeam, setActiveTeam] = useState(() => {
+    const local = teamApi.getLocalTeams();
+    const id = teamApi.getActiveTeamId();
+    if (!id && local.length > 0) return local[0];
+    const cachedMembers = teamApi.getLocalMembers(id);
+    if (cachedMembers) return cachedMembers;
+    return local.find(t => t._id === id) || local[0] || null;
+  });
+  const [requests, setRequests] = useState(() => teamApi.getLocalRequests());
   const [showRequestsView, setShowRequestsView] = useState(false);
 
   // Create Team Modal State
@@ -92,12 +99,20 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
     setActiveTeamId(teamId);
     teamApi.setActiveTeamId(teamId);
     setIsEditingTeamName(false);
+    // 0ms instant display from local cache
+    const cached = teamApi.getLocalMembers(teamId);
+    if (cached) {
+      setActiveTeam(cached);
+    } else {
+      const local = teams.find(t => t._id === teamId);
+      if (local) setActiveTeam(local);
+    }
+    // Background refresh
     try {
       const detailed = await teamApi.getMembers(teamId);
-      setActiveTeam(detailed);
+      if (detailed) setActiveTeam(detailed);
     } catch (e) {
-      const local = teams.find(t => t._id === teamId);
-      setActiveTeam(local);
+      console.warn('Live team details fetch error:', e);
     }
   };
 
