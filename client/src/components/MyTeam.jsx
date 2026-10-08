@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { teamApi, taskTypeApi } from '../services/api';
+import { teamApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -32,12 +32,6 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
   const [requests, setRequests] = useState([]);
   const [showRequestsView, setShowRequestsView] = useState(false);
 
-  // Team Task Types State (Requested by user)
-  const [teamTaskTypes, setTeamTaskTypes] = useState([]);
-  const [showAddTaskTypeModal, setShowAddTaskTypeModal] = useState(false);
-  const [newTaskTypeName, setNewTaskTypeName] = useState('');
-  const [createTypeLoading, setCreateTypeLoading] = useState(false);
-
   // Create Team Modal State
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
@@ -60,24 +54,6 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
   const showFeedback = (text, type = 'info') => {
     setFeedbackMsg({ text, type });
     setTimeout(() => setFeedbackMsg({ text: '', type: 'info' }), 4000);
-  };
-
-  const loadTeamTaskTypes = async (teamId) => {
-    if (!teamId) {
-      setTeamTaskTypes([]);
-      return;
-    }
-    try {
-      const allTypes = await taskTypeApi.getAll();
-      const filtered = (allTypes || []).filter((t) => {
-        if (t.workspaceType !== 'Team') return false;
-        const tId = t.teamId?._id || t.teamId;
-        return !tId || tId === teamId;
-      });
-      setTeamTaskTypes(filtered);
-    } catch (e) {
-      console.error('Error loading team task types:', e);
-    }
   };
 
   const loadAllTeamsAndRequests = async (preferredTeamId) => {
@@ -104,10 +80,8 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
         teamApi.setActiveTeamId(selected._id);
         const detailed = await teamApi.getMembers(selected._id);
         setActiveTeam(detailed || selected);
-        loadTeamTaskTypes(selected._id);
       } else {
         setActiveTeam(null);
-        setTeamTaskTypes([]);
       }
     } catch (e) {
       console.error('Error loading team data:', e);
@@ -118,51 +92,12 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
     setActiveTeamId(teamId);
     teamApi.setActiveTeamId(teamId);
     setIsEditingTeamName(false);
-    loadTeamTaskTypes(teamId);
     try {
       const detailed = await teamApi.getMembers(teamId);
       setActiveTeam(detailed);
     } catch (e) {
       const local = teams.find(t => t._id === teamId);
       setActiveTeam(local);
-    }
-  };
-
-  const handleCreateTeamTaskType = async (e) => {
-    e?.preventDefault();
-    if (!newTaskTypeName.trim() || !activeTeam) return;
-
-    setCreateTypeLoading(true);
-    try {
-      await taskTypeApi.create({
-        name: newTaskTypeName.trim(),
-        workspaceType: 'Team',
-        teamId: activeTeam._id
-      });
-      setNewTaskTypeName('');
-      setShowAddTaskTypeModal(false);
-      showFeedback(
-        lang === 'bn' ? 'টিম টাস্ক টাইপ সফলভাবে তৈরি হয়েছে!' : 'Team task type created successfully!',
-        'success'
-      );
-      await loadTeamTaskTypes(activeTeam._id);
-    } catch (err) {
-      showFeedback(`⚠️ ${err.message}`, 'danger');
-    } finally {
-      setCreateTypeLoading(false);
-    }
-  };
-
-  const handleDeleteTeamTaskType = async (id) => {
-    const confirmMsg = lang === 'bn' ? 'এই টাস্ক টাইপটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this task type?';
-    if (window.confirm(confirmMsg)) {
-      try {
-        await taskTypeApi.delete(id);
-        showFeedback(lang === 'bn' ? 'টাস্ক টাইপ মুছে ফেলা হয়েছে!' : 'Task type deleted!', 'success');
-        if (activeTeam) await loadTeamTaskTypes(activeTeam._id);
-      } catch (err) {
-        showFeedback(`⚠️ ${err.message}`, 'danger');
-      }
     }
   };
 
@@ -402,7 +337,7 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
       )}
 
       {/* MULTIPLE TEAMS TABS BAR */}
-      {!showRequestsView && (
+      {!showRequestsView && teams.length > 0 && (
         <div
           style={{
             display: 'flex',
@@ -465,7 +400,67 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
 
       {/* VIEW 1: TEAM MEMBERS + INLINE SEARCH + ACTIVE TEAM INFO */}
       {!showRequestsView ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        teams.length === 0 ? (
+          <div
+            className="card"
+            style={{
+              padding: '60px 24px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16
+            }}
+          >
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                background: 'var(--bg-input)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-muted)'
+              }}
+            >
+              <Users size={32} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 6 }}>
+                {lang === 'bn' ? 'কোনো টিম তৈরি করা হয়নি' : 'No Teams Created Yet'}
+              </h3>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', maxWidth: 420 }}>
+                {lang === 'bn'
+                  ? 'সহযোগিতা করার জন্য আপনার প্রথম টিম তৈরি করুন অথবা ইনভাইটেশনের জন্য অপেক্ষা করুন।'
+                  : 'Create your first team to collaborate with teammates or check pending invitations.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setNewTeamName('');
+                setShowCreateTeamModal(true);
+              }}
+              className="btn btn-primary"
+              style={{
+                padding: '10px 24px',
+                borderRadius: 'var(--radius-full)',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginTop: 8
+              }}
+            >
+              <Plus size={18} />
+              <span>{lang === 'bn' ? 'নতুন টিম তৈরি করুন' : 'Create New Team'}</span>
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Active Team Summary Banner */}
           {activeTeam && (
             <div
@@ -541,24 +536,22 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
               {/* Active Team Right Action Buttons */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {/* Delete / Leave Team Button */}
-                {teams.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteTeam(activeTeam._id)}
-                    className="btn btn-ghost"
-                    style={{
-                      color: 'var(--danger)',
-                      fontSize: '0.78rem',
-                      padding: '6px 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6
-                    }}
-                  >
-                    <Trash2 size={14} />
-                    <span>{isOwnerOrAdmin ? (t.deleteTeamConfirm ? (lang === 'bn' ? 'টিম মুছুন' : 'Delete Team') : 'Delete Team') : (lang === 'bn' ? 'টিম ত্যাগ করুন' : 'Leave Team')}</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteTeam(activeTeam._id)}
+                  className="btn btn-ghost"
+                  style={{
+                    color: 'var(--danger)',
+                    fontSize: '0.78rem',
+                    padding: '6px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Trash2 size={14} />
+                  <span>{isOwnerOrAdmin ? (t.deleteTeamConfirm ? (lang === 'bn' ? 'টিম মুছুন' : 'Delete Team') : 'Delete Team') : (lang === 'bn' ? 'টিম ত্যাগ করুন' : 'Leave Team')}</span>
+                </button>
               </div>
             </div>
           )}
@@ -739,86 +732,8 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
               })}
             </div>
           </div>
-
-          {/* Team Task Types Section (Requested in screenshot 1: task type add korar option) */}
-          <div className="card" style={{ padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  🏷️ {lang === 'bn' ? `"${activeTeam?.name || 'এই টিমের'}" টাস্ক টাইপসমূহ` : `Task Types for ${activeTeam?.name || 'this Team'}`}
-                </h3>
-                <span className="badge badge-todo" style={{ fontSize: '0.75rem' }}>
-                  {teamTaskTypes.length}
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setNewTaskTypeName('');
-                  setShowAddTaskTypeModal(true);
-                }}
-                className="btn btn-secondary"
-                style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: 'var(--radius-full)', display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <Plus size={14} /> {lang === 'bn' ? 'টাস্ক টাইপ যোগ করুন' : 'Add Task Type'}
-              </button>
-            </div>
-
-            {teamTaskTypes.length === 0 ? (
-              <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', border: '1px dashed var(--border-subtle)', borderRadius: 12 }}>
-                {lang === 'bn'
-                  ? `"${activeTeam?.name || 'এই টিমের'}" জন্য এখনও কোনো টাস্ক টাইপ তৈরি করা হয়নি। উপরের "+ টাস্ক টাইপ যোগ করুন" বাটনে ক্লিক করে তৈরি করুন।`
-                  : `No task types created for "${activeTeam?.name || 'this team'}" yet. Click "+ Add Task Type" to create categories/types for this team.`}
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-                {teamTaskTypes.map((typeItem) => (
-                  <div
-                    key={typeItem._id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      borderRadius: 10,
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-subtle)',
-                      transition: 'var(--transition-fast)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-                      <Tag size={14} color="var(--primary)" style={{ flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {typeItem.name}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteTeamTaskType(typeItem._id)}
-                      className="btn-ghost"
-                      style={{
-                        padding: 4,
-                        borderRadius: 6,
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--danger)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      title={lang === 'bn' ? 'টাস্ক টাইপ মুছুন' : 'Delete Task Type'}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
+        )
       ) : (
         /* VIEW 2: TEAM REQUESTS VIEW */
         <div className="card" style={{ padding: 24, maxWidth: 640 }}>
@@ -943,94 +858,6 @@ export default function MyTeam({ onRequestsUpdated, onOpenNewTask, onTasksUpdate
                 >
                   <Plus size={16} />
                   {createTeamLoading ? (lang === 'bn' ? 'তৈরি হচ্ছে...' : 'Creating...') : (t.createTeamBtn || 'Create Team')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ADD TEAM TASK TYPE MODAL */}
-      {showAddTaskTypeModal && (
-        <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div
-            className="modal-content"
-            style={{
-              width: '100%',
-              maxWidth: 440,
-              padding: 24,
-              borderRadius: 'var(--radius-lg)',
-              background: 'var(--bg-surface)',
-              boxShadow: 'var(--shadow-lg)'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Tag size={20} color="var(--primary)" />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-                  {lang === 'bn' ? `"${activeTeam?.name}" টিমের জন্য নতুন টাস্ক টাইপ` : `Add Task Type for "${activeTeam?.name}"`}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddTaskTypeModal(false)}
-                className="btn-ghost"
-                style={{ padding: 6, borderRadius: '50%' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateTeamTaskType}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
-                  {lang === 'bn' ? 'টাস্ক টাইপের নাম *' : 'Task Type Name *'}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newTaskTypeName}
-                  onChange={(e) => setNewTaskTypeName(e.target.value)}
-                  placeholder={lang === 'bn' ? 'যেমন: কোড রিভিউ, বাগ ফিক্স, ডিজাইন...' : 'e.g. Code Review, Bug Fix, Design...'}
-                  style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', borderRadius: 'var(--radius-md)' }}
-                  autoFocus
-                />
-              </div>
-
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  background: 'var(--bg-input)',
-                  fontSize: '0.78rem',
-                  color: 'var(--text-muted)',
-                  marginBottom: 18
-                }}
-              >
-                <span>{lang === 'bn' ? 'টিম:' : 'Team:'}</span>
-                <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
-                  👥 {activeTeam?.name}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowAddTaskTypeModal(false)}
-                  className="btn btn-secondary"
-                >
-                  {lang === 'bn' ? 'বাতিল' : 'Cancel'}
-                </button>
-                <button
-                  type="submit"
-                  disabled={createTypeLoading || !newTaskTypeName.trim()}
-                  className="btn btn-primary"
-                >
-                  <Plus size={16} />
-                  {createTypeLoading ? (lang === 'bn' ? 'তৈরি হচ্ছে...' : 'Creating...') : (lang === 'bn' ? 'টাস্ক টাইপ সংরক্ষণ করুন' : 'Save Task Type')}
                 </button>
               </div>
             </form>

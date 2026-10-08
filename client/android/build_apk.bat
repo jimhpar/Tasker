@@ -12,6 +12,6 @@ if %errorlevel% neq 0 (
 )
 if not exist "..\..\release" mkdir "..\..\release"
 copy /y "app\build\outputs\apk\release\app-release.apk" "..\..\release\Tasker.apk" >nul
-copy /y "app\build\outputs\apk\release\app-release.apk" "..\..\release\Tasker-v3.4.1.apk" >nul
-copy /y "app\build\outputs\apk\release\app-release.apk" "..\..\Tasker.apk" >nul
-echo Build completed successfully! Signed APK saved to release\Tasker.apk
+copy /y "app\build\outputs\apk\release\app-release.apk" "..\..\release\Tasker-v3.4.2.apk" >nul
+if exist "..\..\Tasker*.apk" del /f /q "..\..\Tasker*.apk"
+echo Build completed successfully! Signed APK saved to release\Tasker-v3.4.2.apk

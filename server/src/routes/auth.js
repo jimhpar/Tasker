@@ -270,7 +270,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
 // Update Settings (Theme, Directory, Task Mode)
 router.put('/settings', authenticateToken, async (req, res) => {
   try {
-    const { theme, taskCreationMode, localAttachmentDir, username, newPassword } = req.body;
+    const { theme, taskCreationMode, localAttachmentDir, geminiApiKey, username, newPassword } = req.body;
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -282,6 +282,9 @@ router.put('/settings', authenticateToken, async (req, res) => {
     }
     if (localAttachmentDir !== undefined) {
       user.settings.localAttachmentDir = localAttachmentDir;
+    }
+    if (geminiApiKey !== undefined) {
+      user.settings.geminiApiKey = (geminiApiKey || '').trim();
     }
 
     if (username && username.trim().toLowerCase() !== user.username) {

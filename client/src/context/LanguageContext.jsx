@@ -25,9 +25,9 @@ export const translations = {
     teamSub: 'সহযোগিতা ও রিকোয়েস্ট',
     community: 'গ্লোবাল চ্যাট',
     communitySub: 'সবার জন্য উন্মুক্ত আলোচনা',
-    clientDictionary: 'ক্লায়েন্ট ডিকশনারি',
+    clientDictionary: 'ক্লায়েন্ট ডিরেক্টরি',
     clientSub: 'ক্লায়েন্ট ও কাজের হিসাব',
-    taskDirectory: 'টাস্ক ডিরেক্টরি',
+    taskDirectory: 'টাস্ক ক্যাটাগরি',
     taskDirectorySub: 'ব্যক্তিগত ও টিমভিত্তিক টাস্কের ধরন',
 
     // Dashboard
@@ -158,8 +158,8 @@ export const translations = {
     saveFile: 'সেভ করুন',
     writeMessagePlaceholder: 'গ্লোবাল চ্যাটে বার্তা লিখুন...',
 
-    // Client Dictionary
-    clientDictionaryTitle: 'ক্লায়েন্ট ডিকশনারি',
+    // Client Directory
+    clientDictionaryTitle: 'ক্লায়েন্ট ডিরেক্টরি',
     clientDictionarySubtitle: 'ক্লায়েন্টদের তথ্য সংরক্ষণ করুন ও কাজের হিসেব রাখুন।',
     addClientBtn: 'নতুন ক্লায়েন্ট যোগ করুন',
     clientListTitle: 'ক্লায়েন্ট সমূহ',
@@ -180,7 +180,7 @@ export const translations = {
     saveClientBtn: 'সেভ করুন',
 
     // Task Directory
-    taskDirectoryTitle: 'টাস্ক ডিরেক্টরি',
+    taskDirectoryTitle: 'টাস্ক ক্যাটাগরি',
     taskDirectorySubtitle: 'ব্যক্তিগত ও টিমভিত্তিক টাস্কের ধরন আলাদাভাবে পরিচালনা করুন।',
     personalTaskTypes: 'ব্যক্তিগত টাস্ক টাইপ',
     teamTaskTypes: 'টিম টাস্ক টাইপ',
@@ -243,9 +243,9 @@ export const translations = {
     teamSub: 'Collaboration & Requests',
     community: 'Global Chat',
     communitySub: 'Open Discussion for All',
-    clientDictionary: 'Client Dictionary',
+    clientDictionary: 'Client Directory',
     clientSub: 'Clients & Work Logs',
-    taskDirectory: 'Task Directory',
+    taskDirectory: 'Task Catagory',
     taskDirectorySub: 'Manage Personal & Team Task Types',
 
     // Dashboard
@@ -376,8 +376,8 @@ export const translations = {
     saveFile: 'Download',
     writeMessagePlaceholder: 'Write a message to Global Chat...',
 
-    // Client Dictionary
-    clientDictionaryTitle: 'Client Dictionary',
+    // Client Directory
+    clientDictionaryTitle: 'Client Directory',
     clientDictionarySubtitle: 'Manage client directory and view project work logs.',
     addClientBtn: 'Add New Client',
     clientListTitle: 'Clients',
@@ -398,7 +398,7 @@ export const translations = {
     saveClientBtn: 'Save Client',
 
     // Task Directory
-    taskDirectoryTitle: 'Task Directory',
+    taskDirectoryTitle: 'Task Catagory',
     taskDirectorySubtitle: 'Manage personal and team task types separately without unnecessary clutter.',
     personalTaskTypes: 'Personal Task Types',
     teamTaskTypes: 'Team Task Types',

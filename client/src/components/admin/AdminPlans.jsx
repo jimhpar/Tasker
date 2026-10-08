@@ -323,7 +323,7 @@ export default function AdminPlans() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <BookOpen size={16} color="var(--primary)" />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Client Dictionary</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Client Directory</span>
                   </div>
                   <label className="switch" style={{ position: 'relative', display: 'inline-block', width: 42, height: 22 }}>
                     <input

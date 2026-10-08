@@ -501,46 +501,54 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
         {/* Header */}
         <div
           style={{
-            padding: '16px 22px',
+            padding: '14px 18px',
             background: 'var(--header-bg)',
             borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            gap: 10,
+            boxSizing: 'border-box'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
             <div
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
+                width: 38,
+                height: 38,
+                minWidth: 38,
+                minHeight: 38,
+                maxWidth: 38,
+                maxHeight: 38,
+                flexShrink: 0,
+                aspectRatio: '1 / 1',
+                borderRadius: 10,
                 background: 'linear-gradient(135deg, #090a0f, #2a2d3d)',
                 color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
               }}
             >
-              <Sparkles size={20} color="#fff" />
+              <Bot size={20} color="#fff" />
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
-                  AI Planner & Time Suite
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>
+                  {lang === 'bn' ? 'AI প্ল্যানার' : 'AI Planner'}
                 </h3>
-                <span style={{ fontSize: '0.65rem', background: 'var(--primary-glow)', color: 'var(--primary)', padding: '2px 7px', borderRadius: 6, fontWeight: 700 }}>
+                <span style={{ fontSize: '0.65rem', background: 'var(--primary-glow)', color: 'var(--primary)', padding: '2px 7px', borderRadius: 6, fontWeight: 700, whiteSpace: 'nowrap' }}>
                   {modelLabel}
                 </span>
               </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-                {lang === 'bn' ? 'স্বয়ংক্রিয় সময় ব্যবস্থাপনা ও স্মার্ট দৈনিক শিডিউলিং' : 'Autonomous daily scheduling & time management'}
+              <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {lang === 'bn' ? 'স্মার্ট দৈনিক শিডিউলিং ও পার্সোনাল অ্যাসিস্ট্যান্ট' : 'Autonomous scheduling & personal assistant'}
               </p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             {hasApiKey ? (
               <>
                 {/* Tab switch buttons */}
@@ -549,9 +557,9 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                     type="button"
                     onClick={() => { setActiveTab('planner'); setShowKeyConfig(false); }}
                     style={{
-                      padding: '6px 14px',
+                      padding: '5px 12px',
                       borderRadius: 8,
-                      fontSize: '0.8rem',
+                      fontSize: '0.78rem',
                       fontWeight: 700,
                       border: 'none',
                       cursor: 'pointer',
@@ -560,15 +568,15 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                       boxShadow: activeTab === 'planner' && !showKeyConfig ? '0 2px 6px rgba(0,0,0,0.1)' : 'none'
                     }}
                   >
-                    📅 {lang === 'bn' ? 'AI প্ল্যানার' : 'AI Planner'}
+                    📅 {lang === 'bn' ? 'প্ল্যানার' : 'Planner'}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('assistant'); setShowKeyConfig(false); }}
                     style={{
-                      padding: '6px 14px',
+                      padding: '5px 12px',
                       borderRadius: 8,
-                      fontSize: '0.8rem',
+                      fontSize: '0.78rem',
                       fontWeight: 700,
                       border: 'none',
                       cursor: 'pointer',
@@ -595,33 +603,16 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                   <Key size={17} />
                 </button>
               </>
-            ) : (
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  color: 'var(--warning)',
-                  fontWeight: 700,
-                  background: 'rgba(234, 179, 8, 0.1)',
-                  padding: '4px 10px',
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5
-                }}
-              >
-                <Key size={13} />
-                {lang === 'bn' ? 'API কী প্রয়োজন' : 'API Key Required'}
-              </span>
-            )}
+            ) : null}
 
-            <button type="button" onClick={onClose} className="btn-ghost" style={{ padding: 6 }}>
+            <button type="button" onClick={onClose} className="btn-ghost" style={{ padding: 6, borderRadius: 8 }} aria-label="Close">
               <X size={18} />
             </button>
           </div>
         </div>
 
         {/* Modal Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 22, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '18px 16px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
           {errorMsg && (
             <div style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 10, fontSize: '0.85rem', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
               <AlertCircle size={16} />
@@ -638,27 +629,27 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
 
           {!hasApiKey ? (
             /* First-time API Key Connection Screen */
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 16px', textAlign: 'center', maxWidth: 480, margin: 'auto' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 12px', textAlign: 'center', maxWidth: 480, margin: 'auto', width: '100%', boxSizing: 'border-box' }}>
               <div
                 style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 18,
+                  width: 54,
+                  height: 54,
+                  borderRadius: 16,
                   background: 'linear-gradient(135deg, #090a0f, #312e81)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   boxShadow: '0 8px 24px rgba(99, 102, 241, 0.25)',
-                  marginBottom: 16
+                  marginBottom: 14
                 }}
               >
-                <Key size={28} color="#818cf8" />
+                <Key size={26} color="#818cf8" />
               </div>
 
-              <h3 style={{ fontSize: '1.22rem', fontWeight: 800, marginBottom: 8 }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 8 }}>
                 {lang === 'bn' ? 'Google Gemini API Key সংযুক্ত করুন' : 'Connect Google Gemini API Key'}
               </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 20 }}>
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 18 }}>
                 {lang === 'bn'
                   ? 'AI প্ল্যানার ও স্বয়ংক্রিয় পার্সোনাল অ্যাসিস্ট্যান্ট ব্যবহার করতে আপনার Google AI Studio থেকে ফ্রি Gemini API কী প্রয়োজন। এটি ১-ক্লিক এ সম্পূর্ণ বিনামূল্যে পেয়ে যাবেন:'
                   : 'To activate the autonomous AI Planner & Assistant, connect your free Gemini API key from Google AI Studio. Generate one in seconds:'}
@@ -676,7 +667,7 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 7,
-                  marginBottom: 22,
+                  marginBottom: 20,
                   textDecoration: 'none',
                   fontWeight: 700
                 }}
@@ -689,8 +680,10 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                 onSubmit={handleConnectKey}
                 style={{
                   width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
                   background: 'var(--bg-input)',
-                  padding: '16px 18px',
+                  padding: '14px 14px',
                   borderRadius: 14,
                   border: '1px solid var(--border-subtle)',
                   display: 'flex',
@@ -698,7 +691,7 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                   gap: 12
                 }}
               >
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, width: '100%', boxSizing: 'border-box', flexWrap: 'wrap' }}>
                   <input
                     type="password"
                     value={inputKey}
@@ -708,8 +701,11 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                     }}
                     placeholder="AIzaSy..."
                     style={{
-                      flex: 1,
-                      padding: '10px 14px',
+                      flex: '1 1 180px',
+                      minWidth: 0,
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '10px 12px',
                       fontSize: '0.88rem',
                       fontFamily: 'var(--font-code)',
                       borderRadius: 10,
@@ -722,7 +718,7 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                     type="submit"
                     disabled={isVerifying}
                     className="btn btn-primary"
-                    style={{ padding: '10px 18px', fontSize: '0.88rem', fontWeight: 700, whiteSpace: 'nowrap' }}
+                    style={{ flex: '0 0 auto', padding: '10px 18px', fontSize: '0.88rem', fontWeight: 700, whiteSpace: 'nowrap' }}
                   >
                     {isVerifying ? (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -757,15 +753,15 @@ export default function AiPlannerModal({ onClose, onTasksCreated }) {
                       Google AI Studio ↗
                     </a>
                   </div>
-                  <form onSubmit={handleConnectKey} style={{ display: 'flex', gap: 8 }}>
+                  <form onSubmit={handleConnectKey} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
                     <input
                       type="password"
                       value={inputKey}
                       onChange={(e) => setInputKey(e.target.value)}
                       placeholder="AIzaSy..."
-                      style={{ flex: 1, padding: '7px 12px', fontSize: '0.82rem', borderRadius: 8, fontFamily: 'var(--font-code)' }}
+                      style={{ flex: '1 1 180px', minWidth: 0, padding: '7px 12px', fontSize: '0.82rem', borderRadius: 8, fontFamily: 'var(--font-code)', boxSizing: 'border-box' }}
                     />
-                    <button type="submit" disabled={isVerifying} className="btn btn-primary" style={{ padding: '7px 14px', fontSize: '0.8rem' }}>
+                    <button type="submit" disabled={isVerifying} className="btn btn-primary" style={{ padding: '7px 14px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {isVerifying ? (lang === 'bn' ? 'যাচাই হচ্ছে...' : 'Verifying...') : (lang === 'bn' ? 'আপডেট করুন' : 'Update')}
                     </button>
                     <button

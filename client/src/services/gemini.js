@@ -1,3 +1,5 @@
+import { userApi, setStoredUser } from './api';
+
 // Gemini AI BYOK Service (Bring Your Own Key)
 
 const GEMINI_KEY_STORAGE = 'tasker_gemini_api_key';
@@ -21,6 +23,51 @@ export const getCurrentUserKey = () => {
     return (u.username || u._id || u.id || '').trim().toLowerCase();
   }
   return '';
+};
+
+/**
+ * Cross-device synchronization for Gemini API Key (PC <-> Mobile)
+ */
+export const syncGeminiKeyWithServer = async (userObj) => {
+  const u = userObj || getCurrentUser();
+  if (!u) return;
+  const uname = (u.username || '').trim().toLowerCase();
+  if (!uname) return;
+
+  const serverKey = (u.settings?.geminiApiKey || '').trim();
+  const localScopedKey = (
+    localStorage.getItem(`tasker_gemini_api_key_${uname}`) ||
+    (uname === 'zim' || uname === 'zim_founder' ? localStorage.getItem('tasker_gemini_api_key_zim') : '') ||
+    ''
+  ).trim();
+
+  // 1. If server has key, sync to local device
+  if (serverKey) {
+    if (localScopedKey !== serverKey) {
+      localStorage.setItem(`tasker_gemini_api_key_${uname}`, serverKey);
+      if (uname === 'zim' || uname === 'zim_founder') {
+        localStorage.setItem('tasker_gemini_api_key_zim', serverKey);
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tasker_gemini_key_updated', { detail: { key: serverKey, userKey: uname } }));
+      }
+    }
+    return serverKey;
+  }
+
+  // 2. If server has NO key, but local device has key (e.g. on PC), auto-upload to server
+  if (!serverKey && localScopedKey) {
+    try {
+      if (!u.settings) u.settings = {};
+      u.settings.geminiApiKey = localScopedKey;
+      setStoredUser(u);
+      await userApi.updateSettings({ geminiApiKey: localScopedKey });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tasker_gemini_key_updated', { detail: { key: localScopedKey, userKey: uname } }));
+      }
+    } catch {}
+    return localScopedKey;
+  }
 };
 
 // Automatic sanitization: Ensure that Zim's key NEVER leaks to Sunny or any other account
@@ -52,12 +99,24 @@ export const getCurrentUserKey = () => {
 export const getGeminiKey = (customUserKey = null) => {
   const userKey = (customUserKey || getCurrentUserKey() || '').trim().toLowerCase();
   
+  // 0. Check currentUser settings from database (PC <-> Mobile Cloud Sync)
+  const u = getCurrentUser();
+  if (u?.settings?.geminiApiKey && u.settings.geminiApiKey.trim()) {
+    const sKey = u.settings.geminiApiKey.trim();
+    if (userKey) {
+      const existing = localStorage.getItem(`tasker_gemini_api_key_${userKey}`);
+      if (existing !== sKey) {
+        localStorage.setItem(`tasker_gemini_api_key_${userKey}`, sKey);
+      }
+    }
+    return sKey;
+  }
+
   // 1. If a specific userKey is provided (and not 'default'), check scoped key
   if (userKey && userKey !== 'default') {
     const scoped = localStorage.getItem(`tasker_gemini_api_key_${userKey}`);
     if (scoped) return scoped;
 
-    const u = getCurrentUser();
     if (u?._id && u._id.toLowerCase() !== userKey) {
       const idScoped = localStorage.getItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`);
       if (idScoped) return idScoped;
@@ -66,7 +125,7 @@ export const getGeminiKey = (customUserKey = null) => {
 
   // 2. Check zim/zim_founder key
   const zimKey = localStorage.getItem('tasker_gemini_api_key_zim');
-  if (zimKey) return zimKey;
+  if (zimKey && (userKey === 'zim' || userKey === 'zim_founder' || !userKey)) return zimKey;
 
   // 3. Check legacy or general keys
   const legacy = localStorage.getItem(GEMINI_KEY_STORAGE);
@@ -196,15 +255,27 @@ export const setGeminiKey = (key, customUserKey = null) => {
   if (userKey) {
     if (cleanKey) {
       localStorage.setItem(`tasker_gemini_api_key_${userKey}`, cleanKey);
+      if (userKey === 'zim' || userKey === 'zim_founder') {
+        localStorage.setItem('tasker_gemini_api_key_zim', cleanKey);
+      }
       const u = getCurrentUser();
-      if (u?._id && u._id.toLowerCase() !== userKey) {
-        localStorage.setItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`, cleanKey);
+      if (u) {
+        if (!u.settings) u.settings = {};
+        u.settings.geminiApiKey = cleanKey;
+        setStoredUser(u);
+        userApi.updateSettings({ geminiApiKey: cleanKey }).catch(() => {});
       }
     } else {
       localStorage.removeItem(`tasker_gemini_api_key_${userKey}`);
+      if (userKey === 'zim' || userKey === 'zim_founder') {
+        localStorage.removeItem('tasker_gemini_api_key_zim');
+      }
       const u = getCurrentUser();
-      if (u?._id) {
-        localStorage.removeItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`);
+      if (u) {
+        if (!u.settings) u.settings = {};
+        u.settings.geminiApiKey = '';
+        setStoredUser(u);
+        userApi.updateSettings({ geminiApiKey: '' }).catch(() => {});
       }
     }
   }
@@ -224,10 +295,16 @@ export const removeGeminiKey = (customUserKey = null) => {
   const userKey = (customUserKey || getCurrentUserKey() || '').trim().toLowerCase();
   if (userKey) {
     localStorage.removeItem(`tasker_gemini_api_key_${userKey}`);
-  }
-  const u = getCurrentUser();
-  if (u?._id) {
-    localStorage.removeItem(`tasker_gemini_api_key_${u._id.toLowerCase()}`);
+    if (userKey === 'zim' || userKey === 'zim_founder') {
+      localStorage.removeItem('tasker_gemini_api_key_zim');
+    }
+    const u = getCurrentUser();
+    if (u) {
+      if (!u.settings) u.settings = {};
+      u.settings.geminiApiKey = '';
+      setStoredUser(u);
+      userApi.updateSettings({ geminiApiKey: '' }).catch(() => {});
+    }
   }
   localStorage.removeItem(GEMINI_KEY_STORAGE);
   localStorage.removeItem('tasker_gemini_api_key_');

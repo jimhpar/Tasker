@@ -46,13 +46,15 @@ export default function Sidebar({
       id: 'dashboard',
       label: t.workDashboard,
       sublabel: t.currentWorkspace,
-      icon: LayoutDashboard
+      icon: LayoutDashboard,
+      isQuickAccess: true
     },
     {
       id: 'calendar',
       label: t.calendarView,
       sublabel: t.calendarSub,
-      icon: Calendar
+      icon: Calendar,
+      isQuickAccess: true
     },
     {
       id: 'people',
@@ -66,7 +68,8 @@ export default function Sidebar({
       label: t.myTeam,
       sublabel: t.teamSub,
       icon: Users,
-      badge: teamRequestsCount > 0 ? teamRequestsCount : null
+      badge: teamRequestsCount > 0 ? teamRequestsCount : null,
+      isQuickAccess: true
     },
     {
       id: 'community',
@@ -260,7 +263,7 @@ export default function Sidebar({
                   transition: 'all 0.15s ease',
                   position: 'relative'
                 }}
-                className={isActive ? '' : 'btn-ghost'}
+                className={`${isActive ? '' : 'btn-ghost'}${item.isQuickAccess ? ' sidebar-quick-access-item' : ''}`}
               >
                 <div
                   style={{

@@ -336,6 +336,8 @@ export const authApi = {
   }
 };
 
+export const userApi = authApi;
+
 // =================== TASKS API ===================
 const getLocalTasks = () => {
   const t = localStorage.getItem(TASKS_CACHE_KEY);
@@ -780,7 +782,7 @@ export const teamApi = {
   async getTeams() {
     try {
       const teams = await request('/teams');
-      if (Array.isArray(teams) && teams.length > 0) {
+      if (Array.isArray(teams)) {
         setLocalTeams(teams);
         return teams;
       }
@@ -859,11 +861,7 @@ export const teamApi = {
     } catch {
       const teams = getLocalTeams();
       const current = teams.find(t => t._id === activeId) || teams[0];
-      return current || {
-        _id: 'team_default',
-        name: 'Workspace Team',
-        members: []
-      };
+      return current || null;
     }
   },
 

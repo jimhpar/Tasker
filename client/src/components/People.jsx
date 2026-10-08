@@ -322,16 +322,6 @@ export default function People() {
             {t.peopleSubtitle || 'Search global users, connect, add to teams, or tag as Client Contact Person.'}
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setShowManualModal(true)}
-          className="btn btn-primary"
-          style={{ padding: '8px 16px', borderRadius: 'var(--radius-full)' }}
-        >
-          <Plus size={16} />
-          <span>{lang === 'bn' ? '+ নতুন ব্যক্তি যোগ করুন' : '+ Add Person'}</span>
-        </button>
       </div>
 
       {/* Toast Notification */}
@@ -486,14 +476,48 @@ export default function People() {
       {activePeopleTab === 'connected' && (
       <>
       {/* GLOBAL USER SEARCH CARD */}
-      <div className="card" style={{ padding: 18 }}>
-        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 10 }}>
-          {lang === 'bn' ? 'গ্লোবাল ইউজার খুঁজুন ও কানেক্ট করুন' : 'Search & Connect Global Users'}
-        </span>
+      <div
+        className="card"
+        style={{
+          padding: '24px 22px',
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.04) 100%), var(--bg-card)',
+          border: '1.5px solid rgba(99, 102, 241, 0.28)',
+          boxShadow: '0 8px 24px rgba(99, 102, 241, 0.08)',
+          borderRadius: 'var(--radius-lg, 16px)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, var(--primary) 0%, #a855f7 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              flexShrink: 0,
+              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+            }}
+          >
+            <UserPlus size={20} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+              {lang === 'bn' ? 'গ্লোবাল ইউজার খুঁজুন ও কানেক্ট করুন' : 'Search & Connect Global Users'}
+            </h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+              {lang === 'bn'
+                ? 'নাম বা ইউজারনেম দিয়ে খুঁজে যে কাউকে আপনার নেটওয়ার্কে কানেক্ট করুন'
+                : 'Find any user across the network by name or username to establish connections'}
+            </p>
+          </div>
+        </div>
 
-        <form onSubmit={handleGlobalSearch} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <form onSubmit={handleGlobalSearch} style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 14 }}>
           <div style={{ position: 'relative', flex: 1 }}>
-            <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+            <Search size={18} color="var(--text-muted)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
               value={searchQuery}
@@ -502,11 +526,29 @@ export default function People() {
                 if (!e.target.value.trim()) setSearchResults([]);
               }}
               placeholder={t.searchPeoplePlaceholder || 'Search global users by name or username to connect...'}
-              style={{ width: '100%', padding: '10px 14px 10px 38px', fontSize: '0.88rem', borderRadius: 'var(--radius-md)' }}
+              style={{
+                width: '100%',
+                padding: '12px 14px 12px 42px',
+                fontSize: '0.92rem',
+                borderRadius: 'var(--radius-md)',
+                border: '1.5px solid var(--border-subtle)',
+                background: 'var(--bg-input)'
+              }}
             />
           </div>
-          <button type="submit" className="btn btn-primary" disabled={searchLoading} style={{ padding: '10px 18px', whiteSpace: 'nowrap' }}>
-            <UserPlus size={16} />
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={searchLoading}
+            style={{
+              padding: '12px 22px',
+              whiteSpace: 'nowrap',
+              fontWeight: 700,
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 4px 14px rgba(99, 102, 241, 0.3)'
+            }}
+          >
+            <UserPlus size={17} />
             <span>{searchLoading ? (lang === 'bn' ? 'খোঁজা হচ্ছে...' : 'Searching...') : (lang === 'bn' ? 'খুঁজুন' : 'Search')}</span>
           </button>
         </form>

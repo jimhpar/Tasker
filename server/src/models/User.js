@@ -43,7 +43,8 @@ const userSchema = new mongoose.Schema({
   settings: {
     theme: { type: String, enum: ['Light', 'Gray', 'Dark'], default: 'Light' },
     taskCreationMode: { type: String, enum: ['Voice', 'Simple', 'Pro'], default: 'Simple' },
-    localAttachmentDir: { type: String, default: 'C:/TaskerFiles' }
+    localAttachmentDir: { type: String, default: 'C:/TaskerFiles' },
+    geminiApiKey: { type: String, default: '' }
   }
 }, {
   timestamps: true

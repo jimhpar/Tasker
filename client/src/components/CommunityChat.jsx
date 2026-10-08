@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { communityApi, notifyDataChanged } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -10,12 +10,13 @@ import {
   Smile,
   Reply,
   X,
-  CheckCircle2
+  CheckCircle2,
+  ChevronDown
 } from 'lucide-react';
 
 const QUICK_EMOJIS = ['👍', '❤️', '🔥', '🎉', '🚀', '😊', '💡', '👏', '✅', '🙌', '💯', '✨'];
 
-export default function CommunityChat() {
+export default function CommunityChat({ isActive = true }) {
   const { user } = useAuth();
   const { lang } = useLanguage();
 
@@ -36,6 +37,7 @@ export default function CommunityChat() {
   const [inputText, setInputText] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -53,18 +55,60 @@ export default function CommunityChat() {
     return [...messages].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
   }, [messages]);
 
-  // Jump to bottom immediately on mount and when messages arrive (like WhatsApp)
-  const scrollToBottom = (behavior = 'auto') => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior });
-    } else if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+  // Jump to bottom immediately on mount and when messages arrive
+  const scrollToBottom = useCallback((behavior = 'auto') => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior
+      });
     }
-  };
+    if (messagesEndRef.current) {
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior, block: 'end' });
+      } catch {}
+    }
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // Show arrow if scrolled up more than 100px from bottom
+    setShowScrollBottom(distanceFromBottom > 100);
+  }, []);
 
   useEffect(() => {
-    scrollToBottom('auto');
-  }, [messages.length]);
+    if (isActive) {
+      scrollToBottom('auto');
+      const t1 = setTimeout(() => scrollToBottom('auto'), 40);
+      const t2 = setTimeout(() => scrollToBottom('auto'), 150);
+      const t3 = setTimeout(() => scrollToBottom('auto'), 400);
+      const t4 = setTimeout(() => scrollToBottom('auto'), 800);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+        clearTimeout(t4);
+      };
+    }
+  }, [isActive, messages.length, scrollToBottom]);
+
+  // Keep scroll pinned to bottom when resized or tab becomes active
+  useEffect(() => {
+    const el = messagesContainerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (isActive && el.scrollHeight > 0) {
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distanceFromBottom < 150) {
+          scrollToBottom('auto');
+        }
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isActive, scrollToBottom]);
 
   // Mark as read immediately on mount and clear red dot
   useEffect(() => {
@@ -93,6 +137,12 @@ export default function CommunityChat() {
       const data = await communityApi.getMessages();
       if (Array.isArray(data)) {
         setMessages(data);
+        setTimeout(() => {
+          const el = messagesContainerRef.current;
+          if (!el || (el.scrollHeight - el.scrollTop - el.clientHeight < 200)) {
+            scrollToBottom('auto');
+          }
+        }, 50);
       }
     } catch (e) {
       console.warn('Error loading community messages:', e);
@@ -268,9 +318,11 @@ export default function CommunityChat() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: 'calc(100vh - 120px)',
+        height: '100%',
+        maxHeight: '100%',
         padding: 0,
-        overflow: 'hidden'
+        overflow: 'hidden',
+        position: 'relative'
       }}
     >
       {/* Community Header */}
@@ -339,7 +391,19 @@ export default function CommunityChat() {
       {/* Messages Scroll Area */}
       <div
         ref={messagesContainerRef}
-        style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}
+        onScroll={handleScroll}
+        className="community-chat-messages no-scrollbar"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '16px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none'
+        }}
       >
         {displayMessages.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
@@ -493,6 +557,38 @@ export default function CommunityChat() {
         </div>
       )}
 
+      {/* Floating Down Arrow Button to Jump to Latest Message */}
+      {showScrollBottom && (
+        <button
+          type="button"
+          onClick={() => scrollToBottom('smooth')}
+          className="chat-floating-scroll-btn"
+          style={{
+            position: 'absolute',
+            right: 18,
+            bottom: showEmojiPicker ? 260 : 74,
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.28)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--primary)',
+            cursor: 'pointer',
+            zIndex: 30,
+            transition: 'transform 0.15s ease, opacity 0.15s ease',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          title={lang === 'bn' ? 'সর্বশেষ বার্তায় যান' : 'Scroll to latest message'}
+          aria-label="Scroll to bottom"
+        >
+          <ChevronDown size={22} />
+        </button>
+      )}
+
       {/* Message Input Footer (Images and files strictly disabled in Global Chat) */}
       <form
         className="community-chat-form"
@@ -503,7 +599,8 @@ export default function CommunityChat() {
           borderTop: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
-          gap: 10
+          gap: 10,
+          flexShrink: 0
         }}
       >
         {/* Emoji Toggle Button */}

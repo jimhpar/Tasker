@@ -19,6 +19,7 @@ import TaskModal from './components/TaskModal';
 import AiPlannerModal from './components/AiPlannerModal';
 import SettingsModal from './components/SettingsModal';
 import ChatDrawer from './components/ChatDrawer';
+import MobileBottomNav from './components/MobileBottomNav';
 import AdminUsers from './components/admin/AdminUsers';
 import AdminPlans from './components/admin/AdminPlans';
 import {
@@ -63,6 +64,8 @@ function MainApp() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showChatDrawer, setShowChatDrawer] = useState(false);
+  const [isInActiveChat, setIsInActiveChat] = useState(false);
 
   const tasksRef = useRef([]);
   useEffect(() => {
@@ -282,7 +285,7 @@ function MainApp() {
         />
 
         {/* Content Area - Kept mounted for instantaneous 0ms section switching */}
-        <main className="content-area">
+        <main className={`content-area ${activeTab === 'community' ? 'content-area-community' : ''}`}>
           <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
             <WorkDashboard
               tasks={tasks}
@@ -315,8 +318,8 @@ function MainApp() {
             />
           </div>
 
-          <div style={{ display: activeTab === 'community' ? 'block' : 'none' }}>
-            <CommunityChat />
+          <div style={{ display: activeTab === 'community' ? 'flex' : 'none', flex: 1, height: '100%', minHeight: 0, flexDirection: 'column' }}>
+            <CommunityChat isActive={activeTab === 'community'} />
           </div>
 
           <div style={{ display: activeTab === 'clients' ? 'block' : 'none' }}>
@@ -342,8 +345,33 @@ function MainApp() {
         </main>
       </div>
 
-      {/* Floating Bottom-Right Team Chat Drawer (Hidden on community chat to avoid overlap) */}
-      <ChatDrawer hideTrigger={activeTab === 'community' || activeTab === 'people'} />
+      {/* Team & Individual Chat Drawer */}
+      <ChatDrawer
+        isOpen={showChatDrawer}
+        onClose={() => {
+          setShowChatDrawer(false);
+          setIsInActiveChat(false);
+        }}
+        hideTrigger={true}
+        onActiveChatChange={setIsInActiveChat}
+      />
+
+      {/* Mobile Bottom Quick Access Navigation Bar (5 Icons) */}
+      {!isInActiveChat && (
+        <MobileBottomNav
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            setShowChatDrawer(false);
+            setIsInActiveChat(false);
+          }}
+          onOpenNewTask={() => handleOpenTaskModal()}
+          isChatOpen={showChatDrawer}
+          onToggleChat={() => setShowChatDrawer(prev => !prev)}
+          teamRequestsCount={teamRequestsCount}
+          hasChatUnread={hasGlobalUnread}
+        />
+      )}
 
       {/* Universal Task Creation & Edit Modal */}
       <TaskModal

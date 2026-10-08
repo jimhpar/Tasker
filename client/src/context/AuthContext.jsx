@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authApi, getToken, removeToken, getStoredUser, setStoredUser } from '../services/api';
+import { syncGeminiKeyWithServer } from '../services/gemini';
 
 const AuthContext = createContext(null);
 
@@ -42,6 +43,7 @@ export const AuthProvider = ({ children }) => {
 
     if (token && stored) {
       setUser(stored);
+      syncGeminiKeyWithServer(stored).catch(() => {});
       if (explicitTheme) {
         applyTheme(explicitTheme);
       } else if (stored.settings?.theme && stored.settings.theme !== 'Dark') {
@@ -62,6 +64,7 @@ export const AuthProvider = ({ children }) => {
           };
           setStoredUser(enriched);
           setUser(enriched);
+          syncGeminiKeyWithServer(enriched).catch(() => {});
         }
       }).catch(() => {});
     }
@@ -80,6 +83,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (identifier, password) => {
     const res = await authApi.login(identifier, password);
     setUser(res.user);
+    syncGeminiKeyWithServer(res.user).catch(() => {});
     const explicitTheme = localStorage.getItem('tasker_user_explicit_theme');
     if (explicitTheme) {
       applyTheme(explicitTheme);
@@ -97,6 +101,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (data) => {
     const res = await authApi.register(data);
     setUser(res.user);
+    syncGeminiKeyWithServer(res.user).catch(() => {});
     const explicitTheme = localStorage.getItem('tasker_user_explicit_theme');
     if (explicitTheme) {
       applyTheme(explicitTheme);

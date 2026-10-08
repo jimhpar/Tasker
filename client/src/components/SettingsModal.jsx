@@ -405,7 +405,7 @@ export default function SettingsModal({ onClose }) {
                       </div>
                     ) : (
                       <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-                        {updateResult.error ? `⚠️ ${updateResult.error}` : (lang === 'bn' ? '✅ আপনি Tasker-এর সর্বশেষ সংস্করণ (v3.4.1) ব্যবহার করছেন।' : '✅ Tasker is up to date (v3.4.1).')}
+                        {updateResult.error ? `⚠️ ${updateResult.error}` : (lang === 'bn' ? '✅ আপনি Tasker-এর সর্বশেষ সংস্করণ (v3.4.2) ব্যবহার করছেন।' : '✅ Tasker is up to date (v3.4.2).')}
                       </p>
                     )}
                   </div>

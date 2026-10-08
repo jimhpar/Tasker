@@ -185,8 +185,8 @@ export default function CalendarView({ tasks, onUpdateTask, onOpenNewTaskForDate
         </div>
       </div>
 
-      {/* Main Grid: Calendar on Left, Selected Date Details on Right (Stacked on Mobile) */}
-      <div className="calendar-responsive-grid" style={{ display: 'grid', gap: 20, alignItems: 'start' }}>
+      {/* Main Grid: Calendar on Left, Selected Date Details on Right (Full width on Mobile) */}
+      <div className="calendar-responsive-grid" style={{ width: '100%', gap: 20 }}>
         {/* Calendar Month Grid Card */}
         <div className="card" style={{ padding: 18 }}>
           {/* Day Names Row - Strictly Uniform 7 Columns */}

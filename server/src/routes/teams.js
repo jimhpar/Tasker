@@ -37,37 +37,22 @@ router.get('/users/search', async (req, res) => {
   }
 });
 
-// Helper: Ensure at least one default team exists for the user
-const ensureUserHasTeam = async (userId) => {
-  let teams = await Team.find({
+// Helper: Find all teams the user belongs to or owns (No default team created automatically)
+const getUserTeams = async (userId) => {
+  const teams = await Team.find({
     $or: [{ ownerId: userId }, { 'members.userId': userId }]
   })
     .populate('members.userId', 'username profile')
     .populate('requests.fromUserId', 'username profile')
     .populate('requests.toUserId', 'username profile');
 
-  if (teams.length === 0) {
-    const defaultTeam = new Team({
-      name: 'Default Workspace Team',
-      ownerId: userId,
-      members: [{ userId, role: 'Admin' }],
-      requests: []
-    });
-    await defaultTeam.save();
-    const populated = await Team.findById(defaultTeam._id)
-      .populate('members.userId', 'username profile')
-      .populate('requests.fromUserId', 'username profile')
-      .populate('requests.toUserId', 'username profile');
-    teams = [populated];
-  }
-
-  return teams;
+  return teams || [];
 };
 
 // GET /api/teams - List all teams current user belongs to or owns
 router.get('/', async (req, res) => {
   try {
-    const teams = await ensureUserHasTeam(req.user.userId);
+    const teams = await getUserTeams(req.user.userId);
     res.json(teams);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch teams' });
@@ -153,8 +138,8 @@ router.delete('/:teamId', async (req, res) => {
 // GET /api/teams/members or /api/teams/:teamId/members
 router.get('/members', async (req, res) => {
   try {
-    const teams = await ensureUserHasTeam(req.user.userId);
-    res.json(teams[0]);
+    const teams = await getUserTeams(req.user.userId);
+    res.json(teams[0] || null);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch team' });
   }

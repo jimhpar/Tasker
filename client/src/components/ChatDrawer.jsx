@@ -21,11 +21,23 @@ import {
 
 const QUICK_EMOJIS = ['👍', '❤️', '🔥', '🎉', '🚀', '😊', '💡', '👏', '✅', '🙌', '💯', '✨'];
 
-export default function ChatDrawer({ hideTrigger = false }) {
+export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOnClose, hideTrigger = false, onActiveChatChange }) {
   const { user } = useAuth();
   const { lang } = useLanguage();
 
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
+
+  const handleClose = () => {
+    if (externalOnClose) externalOnClose();
+    setInternalIsOpen(false);
+    onActiveChatChange?.(false);
+    setActiveTarget(null);
+    try {
+      localStorage.setItem('tasker_chat_view_state', 'list');
+    } catch {}
+  };
+
   const [activeTab, setActiveTab] = useState(() => {
     try {
       return localStorage.getItem('tasker_chat_active_tab') || 'teams';
@@ -37,16 +49,14 @@ export default function ChatDrawer({ hideTrigger = false }) {
   const [people, setPeople] = useState([]);
 
   // Selected conversation target: { id, name, type: 'team' | 'direct', subtitle }
-  const [activeTarget, setActiveTarget] = useState(() => {
-    try {
-      const viewState = localStorage.getItem('tasker_chat_view_state');
-      if (viewState === 'list') return null;
-      const saved = localStorage.getItem('tasker_last_chat_target');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
+  // Always default to null so the user sees the conversations list with bottom navigation bar visible
+  const [activeTarget, setActiveTarget] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveTarget(null);
     }
-  });
+  }, [isOpen]);
 
   const [messages, setMessages] = useState(() => {
     try {
@@ -86,6 +96,14 @@ export default function ChatDrawer({ hideTrigger = false }) {
       window.removeEventListener('focusout', handleFocusOut);
     };
   }, []);
+
+  useEffect(() => {
+    if (isOpen && activeTarget) {
+      onActiveChatChange?.(true);
+    } else {
+      onActiveChatChange?.(false);
+    }
+  }, [isOpen, activeTarget, onActiveChatChange]);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
@@ -362,37 +380,12 @@ export default function ChatDrawer({ hideTrigger = false }) {
   };
 
   if (!isOpen) {
-    if (hideTrigger || isInputFocused) return null;
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="btn btn-primary chat-floating-trigger"
-        style={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          borderRadius: 'var(--radius-full)',
-          padding: '12px 20px',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
-          background: 'var(--active-btn-bg)',
-          color: 'var(--active-btn-text)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          zIndex: 90,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10
-        }}
-      >
-        <MessageSquare size={19} color="currentColor" />
-        <span style={{ fontWeight: 700 }}>Chat</span>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
-      </button>
-    );
+    return null;
   }
 
   return (
     <div
-      className="chat-floating-drawer"
+      className={`chat-floating-drawer ${activeTarget ? 'chat-drawer-in-conversation' : 'chat-drawer-in-list'}`}
       style={{
         position: 'fixed',
         bottom: 20,
@@ -488,7 +481,7 @@ export default function ChatDrawer({ hideTrigger = false }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={handleClose}
             className="btn-ghost"
             style={{
               padding: '6px 8px',
@@ -504,7 +497,7 @@ export default function ChatDrawer({ hideTrigger = false }) {
           </button>
           <button
             onClick={() => {
-              setIsOpen(false);
+              handleClose();
               setActiveTarget(null);
             }}
             className="btn-ghost"

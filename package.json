@@ -1,6 +1,6 @@
 {
   "name": "tasker",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "description": "Tasker - Universal AI-Powered Productivity Suite",
   "main": "electron/main.js",
   "author": "BlackBox THC",

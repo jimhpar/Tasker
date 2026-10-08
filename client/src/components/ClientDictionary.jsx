@@ -217,10 +217,6 @@ export default function ClientDictionary({ onTasksUpdated }) {
             {t.clientDictionarySubtitle}
           </p>
         </div>
-
-        <button onClick={() => handleOpenModal()} className="btn btn-primary">
-          <Plus size={18} /> {t.addClientBtn}
-        </button>
       </div>
 
       {/* Main Grid: On Mobile: Selected Client Top, Roster Below. On Desktop: Roster Left, Details Right */}
