@@ -29,6 +29,7 @@ import {
   requestNotificationPermission,
   showPhoneShadeNotification
 } from './services/notificationService';
+import { getUnreadChatTargets, processInboxForUnread } from './services/chatNotification';
 
 function MainApp() {
   const { user, loading } = useAuth();
@@ -52,6 +53,9 @@ function MainApp() {
   const [pendingConnectionRequestsCount, setPendingConnectionRequestsCount] = useState(0);
   const [hasGlobalUnread, setHasGlobalUnread] = useState(() => {
     return localStorage.getItem('tasker_global_unread') === 'true';
+  });
+  const [hasChatUnread, setHasChatUnread] = useState(() => {
+    return getUnreadChatTargets().length > 0;
   });
 
   // Modals
@@ -112,12 +116,26 @@ function MainApp() {
     const handleUnreadChanged = (e) => {
       setHasGlobalUnread(e?.detail?.unread ?? (localStorage.getItem('tasker_global_unread') === 'true'));
     };
+    const handleChatUnreadChanged = (e) => {
+      setHasChatUnread(e?.detail?.hasUnread ?? (getUnreadChatTargets().length > 0));
+    };
     const handleRequestsChanged = () => {
       loadPendingConnectionRequests();
     };
 
     window.addEventListener('tasker_global_unread_changed', handleUnreadChanged);
+    window.addEventListener('tasker_chat_unread_changed', handleChatUnreadChanged);
     window.addEventListener('tasker_connection_requests_updated', handleRequestsChanged);
+
+    // Initial check for unread chat messages in recent window
+    if (user?.username) {
+      const recentWindow = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      communityApi.getInboxMessages(recentWindow).then(inbox => {
+        if (Array.isArray(inbox) && inbox.length > 0) {
+          processInboxForUnread(inbox, user?.username);
+        }
+      }).catch(() => {});
+    }
 
     const reqInterval = setInterval(() => {
       loadPendingConnectionRequests();
@@ -126,6 +144,7 @@ function MainApp() {
     return () => {
       clearInterval(reqInterval);
       window.removeEventListener('tasker_global_unread_changed', handleUnreadChanged);
+      window.removeEventListener('tasker_chat_unread_changed', handleChatUnreadChanged);
       window.removeEventListener('tasker_connection_requests_updated', handleRequestsChanged);
     };
   }, [user]);
@@ -144,6 +163,7 @@ function MainApp() {
       try {
         const inbox = await communityApi.getInboxMessages(new Date(lastSeenTime).toISOString());
         if (Array.isArray(inbox) && inbox.length > 0) {
+          processInboxForUnread(inbox, user.username);
           const myU = (user.username || '').toLowerCase();
           for (const msg of inbox) {
             const senderU = (msg.senderUsername || '').toLowerCase();
@@ -369,7 +389,7 @@ function MainApp() {
           isChatOpen={showChatDrawer}
           onToggleChat={() => setShowChatDrawer(prev => !prev)}
           teamRequestsCount={teamRequestsCount}
-          hasChatUnread={hasGlobalUnread}
+          hasChatUnread={hasChatUnread}
         />
       )}
 

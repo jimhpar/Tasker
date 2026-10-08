@@ -83,10 +83,8 @@ export default function MobileBottomNav({
       >
         <div className="mobile-nav-icon-wrapper">
           <MessageSquare size={21} strokeWidth={isChatOpen ? 2.5 : 2} />
-          {hasChatUnread ? (
+          {hasChatUnread && (
             <span className="mobile-nav-badge unread-dot" />
-          ) : (
-            <span className="mobile-nav-online-dot" />
           )}
         </div>
         <span className="mobile-nav-indicator" />

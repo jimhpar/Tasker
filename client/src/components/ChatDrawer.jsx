@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { teamApi, peopleApi, communityApi, notifyDataChanged } from '../services/api';
+import { getUnreadChatTargets, markTargetAsRead } from '../services/chatNotification';
 import {
   MessageSquare,
   ChevronDown,
@@ -47,6 +48,15 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
   });
   const [teams, setTeams] = useState([]);
   const [people, setPeople] = useState([]);
+  const [unreadTargets, setUnreadTargets] = useState(() => getUnreadChatTargets());
+
+  useEffect(() => {
+    const handleUnreadChanged = (e) => {
+      setUnreadTargets(e.detail?.unreadTargets || getUnreadChatTargets());
+    };
+    window.addEventListener('tasker_chat_unread_changed', handleUnreadChanged);
+    return () => window.removeEventListener('tasker_chat_unread_changed', handleUnreadChanged);
+  }, []);
 
   // Selected conversation target: { id, name, type: 'team' | 'direct', subtitle }
   // Always default to null so the user sees the conversations list with bottom navigation bar visible
@@ -202,6 +212,17 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
   // Load chat history for selected target
   const selectConversation = (target) => {
     setActiveTarget(target);
+    markTargetAsRead(target);
+    setUnreadTargets(prev => {
+      const keysToRemove = [
+        String(target.id || '').toLowerCase(),
+        String(target._id || '').toLowerCase(),
+        String(target.username || '').toLowerCase(),
+        String(target.name || '').toLowerCase()
+      ];
+      return prev.filter(k => !keysToRemove.includes(k.toLowerCase()));
+    });
+
     try {
       localStorage.setItem('tasker_chat_view_state', 'chat');
       localStorage.setItem('tasker_last_chat_target', JSON.stringify(target));
@@ -237,6 +258,7 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
 
   useEffect(() => {
     if (isOpen && activeTarget) {
+      markTargetAsRead(activeTarget);
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen, activeTarget]);
@@ -521,54 +543,73 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
         // Conversation Target Selector: Teams vs People
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Tab Switcher */}
-          <div style={{ display: 'flex', background: 'var(--bg-input)', padding: 4, margin: '12px 14px 8px', borderRadius: 10 }}>
-            <button
-              type="button"
-              onClick={() => handleTabChange('teams')}
-              style={{
-                flex: 1,
-                padding: '6px 0',
-                borderRadius: 8,
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                background: activeTab === 'teams' ? 'var(--bg-card)' : 'transparent',
-                color: activeTab === 'teams' ? 'var(--text-main)' : 'var(--text-muted)',
-                boxShadow: activeTab === 'teams' ? '0 2px 6px rgba(0,0,0,0.1)' : 'none',
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <Users size={14} />
-              <span>Teams ({teams.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleTabChange('people')}
-              style={{
-                flex: 1,
-                padding: '6px 0',
-                borderRadius: 8,
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                background: activeTab === 'people' ? 'var(--bg-card)' : 'transparent',
-                color: activeTab === 'people' ? 'var(--text-main)' : 'var(--text-muted)',
-                boxShadow: activeTab === 'people' ? '0 2px 6px rgba(0,0,0,0.1)' : 'none',
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <User size={14} />
-              <span>Connected People ({people.length})</span>
-            </button>
-          </div>
+          {(() => {
+            const hasAnyTeamUnread = teams.some(tm =>
+              unreadTargets.some(k =>
+                k === String(tm._id).toLowerCase() ||
+                k === String(tm.name).toLowerCase()
+              )
+            );
+            const hasAnyPeopleUnread = people.some(p =>
+              unreadTargets.some(k =>
+                k === String(p.username || '').toLowerCase() ||
+                k === String(p._id).toLowerCase()
+              )
+            );
+
+            return (
+              <div style={{ display: 'flex', background: 'var(--bg-input)', padding: 4, margin: '12px 14px 8px', borderRadius: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('teams')}
+                  style={{
+                    flex: 1,
+                    padding: '6px 0',
+                    borderRadius: 8,
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    background: activeTab === 'teams' ? 'var(--bg-card)' : 'transparent',
+                    color: activeTab === 'teams' ? 'var(--text-main)' : 'var(--text-muted)',
+                    boxShadow: activeTab === 'teams' ? '0 2px 6px rgba(0,0,0,0.1)' : 'none',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Users size={14} />
+                  <span>Teams ({teams.length})</span>
+                  {hasAnyTeamUnread && <span className="chat-target-unread-dot" style={{ width: 6, height: 6 }} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('people')}
+                  style={{
+                    flex: 1,
+                    padding: '6px 0',
+                    borderRadius: 8,
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    background: activeTab === 'people' ? 'var(--bg-card)' : 'transparent',
+                    color: activeTab === 'people' ? 'var(--text-main)' : 'var(--text-muted)',
+                    boxShadow: activeTab === 'people' ? '0 2px 6px rgba(0,0,0,0.1)' : 'none',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <User size={14} />
+                  <span>Connected People ({people.length})</span>
+                  {hasAnyPeopleUnread && <span className="chat-target-unread-dot" style={{ width: 6, height: 6 }} />}
+                </button>
+              </div>
+            );
+          })()}
 
           {/* List Area */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '6px 14px' }}>
@@ -579,35 +620,63 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {teams.map((tm) => (
-                    <div
-                      key={tm._id}
-                      onClick={() => selectConversation({ id: tm._id, name: tm.name, type: 'team', subtitle: 'Team Channel' })}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '10px 12px',
-                        borderRadius: 10,
-                        background: 'var(--bg-input)',
-                        cursor: 'pointer',
-                        transition: 'background 0.15s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--primary)', color: 'var(--bg-app)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Users size={16} />
+                  {teams.map((tm) => {
+                    const isUnread = unreadTargets.some(k =>
+                      k === String(tm._id).toLowerCase() ||
+                      k === String(tm.name).toLowerCase()
+                    );
+
+                    return (
+                      <div
+                        key={tm._id}
+                        onClick={() => selectConversation({ id: tm._id, name: tm.name, type: 'team', subtitle: 'Team Channel' })}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          background: isUnread ? 'rgba(239, 68, 68, 0.08)' : 'var(--bg-input)',
+                          border: isUnread ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid transparent',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s, border-color 0.15s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ position: 'relative' }}>
+                            <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--primary)', color: 'var(--bg-app)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Users size={16} />
+                            </div>
+                            {isUnread && (
+                              <span
+                                className="chat-target-unread-dot"
+                                style={{ position: 'absolute', top: -3, right: -3, border: '2px solid var(--bg-surface)' }}
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span>{tm.name}</span>
+                              {isUnread && (
+                                <span style={{ fontSize: '0.65rem', background: '#ef4444', color: '#fff', padding: '1px 6px', borderRadius: 10, fontWeight: 800 }}>
+                                  NEW
+                                </span>
+                              )}
+                            </p>
+                            <p style={{ fontSize: '0.7rem', color: isUnread ? '#ef4444' : 'var(--text-muted)', margin: 0, fontWeight: isUnread ? 600 : 400 }}>
+                              {isUnread ? 'New unread team message' : `${tm.members?.length || 1} members • Team Channel`}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0 }}>{tm.name}</p>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>
-                            {tm.members?.length || 1} members • Team Channel
-                          </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {isUnread && <span className="chat-target-unread-dot" />}
+                          <span style={{ fontSize: '0.72rem', color: isUnread ? '#ef4444' : 'var(--primary)', fontWeight: 700 }}>
+                            {isUnread ? 'Read →' : 'Open →'}
+                          </span>
                         </div>
                       </div>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 700 }}>Open →</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )
             ) : (
@@ -617,35 +686,63 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {people.map((p) => (
-                    <div
-                      key={p._id}
-                      onClick={() => selectConversation({ id: p._id, name: p.fullName || p.username, type: 'direct', subtitle: `@${p.username}` })}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '10px 12px',
-                        borderRadius: 10,
-                        background: 'var(--bg-input)',
-                        cursor: 'pointer',
-                        transition: 'background 0.15s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700 }}>
-                          {(p.fullName?.[0] || p.username?.[0] || 'U').toUpperCase()}
+                  {people.map((p) => {
+                    const isUnread = unreadTargets.some(k =>
+                      k === String(p.username || '').toLowerCase() ||
+                      k === String(p._id).toLowerCase()
+                    );
+
+                    return (
+                      <div
+                        key={p._id}
+                        onClick={() => selectConversation({ id: p._id, name: p.fullName || p.username, username: p.username, type: 'direct', subtitle: `@${p.username}` })}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          background: isUnread ? 'rgba(239, 68, 68, 0.08)' : 'var(--bg-input)',
+                          border: isUnread ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid transparent',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s, border-color 0.15s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ position: 'relative' }}>
+                            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700 }}>
+                              {(p.fullName?.[0] || p.username?.[0] || 'U').toUpperCase()}
+                            </div>
+                            {isUnread && (
+                              <span
+                                className="chat-target-unread-dot"
+                                style={{ position: 'absolute', top: -3, right: -3, border: '2px solid var(--bg-surface)' }}
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span>{p.fullName || p.username}</span>
+                              {isUnread && (
+                                <span style={{ fontSize: '0.65rem', background: '#ef4444', color: '#fff', padding: '1px 6px', borderRadius: 10, fontWeight: 800 }}>
+                                  NEW
+                                </span>
+                              )}
+                            </p>
+                            <p style={{ fontSize: '0.7rem', color: isUnread ? '#ef4444' : 'var(--text-muted)', margin: 0, fontWeight: isUnread ? 600 : 400 }}>
+                              {isUnread ? 'New message received' : `@${p.username} ${p.email ? `• ${p.email}` : ''}`}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0 }}>{p.fullName || p.username}</p>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>
-                            @{p.username} {p.email ? `• ${p.email}` : ''}
-                          </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {isUnread && <span className="chat-target-unread-dot" />}
+                          <span style={{ fontSize: '0.72rem', color: isUnread ? '#ef4444' : 'var(--primary)', fontWeight: 700 }}>
+                            {isUnread ? 'Read →' : 'Chat →'}
+                          </span>
                         </div>
                       </div>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 700 }}>Chat →</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )
             )}
