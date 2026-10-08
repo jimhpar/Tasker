@@ -120,17 +120,34 @@ export default function CommunityChat({ isActive = true }) {
 
     loadCommunityMessages();
 
-    // Listen for real-time community chat broadcast
+    // Listen for real-time community chat broadcast & Socket.IO updates
     const handleChatSync = () => loadCommunityMessages();
-    window.addEventListener('tasker_community_chat_updated', handleChatSync);
+    const handleSocketCommunityMsg = (e) => {
+      const msg = e?.detail;
+      if (!msg) return;
+      setMessages(prev => {
+        if (prev.some(m => String(m._id || m.id) === String(msg._id || msg.id))) return prev;
+        return [...prev, msg];
+      });
+      setTimeout(() => {
+        const el = messagesContainerRef.current;
+        if (!el || (el.scrollHeight - el.scrollTop - el.clientHeight < 250)) {
+          scrollToBottom('smooth');
+        }
+      }, 50);
+    };
 
-    const interval = setInterval(loadCommunityMessages, 1800); // 1.8s ultra-fast sync
+    window.addEventListener('tasker_community_chat_updated', handleChatSync);
+    window.addEventListener('tasker_socket_community_message', handleSocketCommunityMsg);
+
+    const interval = setInterval(loadCommunityMessages, 3500); // 3.5s backup sync
     return () => {
       clearInterval(interval);
       window.removeEventListener('tasker_community_chat_updated', handleChatSync);
+      window.removeEventListener('tasker_socket_community_message', handleSocketCommunityMsg);
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     };
-  }, []);
+  }, [scrollToBottom]);
 
   const loadCommunityMessages = async () => {
     try {

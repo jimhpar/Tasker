@@ -272,13 +272,49 @@ export default function ChatDrawer({ isOpen: externalIsOpen, onClose: externalOn
     }
   }, [messages, isOpen, activeTarget]);
 
-  // Fast live polling for active conversation
+  // Real-time instantaneous message delivery for active conversation via Socket.IO (0ms latency)
+  useEffect(() => {
+    const handleSocketMsg = (e) => {
+      const msg = e?.detail;
+      if (!msg || !activeTarget) return;
+      const { channelType, channelId } = getChannelInfo(activeTarget);
+      if (
+        msg.channelType === channelType &&
+        String(msg.channelId).toLowerCase() === String(channelId).toLowerCase()
+      ) {
+        const myU = (user?.username || '').toLowerCase();
+        const formatted = {
+          id: msg._id || msg.id,
+          sender: msg.senderUsername || 'User',
+          text: msg.content || '',
+          audioData: msg.audioData || null,
+          time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isMe: (msg.senderUsername || '').toLowerCase() === myU,
+          replyTo: msg.replyTo
+        };
+        setMessages(prev => {
+          if (prev.some(m => String(m.id) === String(formatted.id))) return prev;
+          const next = [...prev, formatted];
+          try { localStorage.setItem(`tasker_chat_history_${activeTarget.id}`, JSON.stringify(next)); } catch {}
+          return next;
+        });
+        if (isOpen) {
+          markTargetAsRead(activeTarget);
+        }
+      }
+    };
+
+    window.addEventListener('tasker_socket_channel_message', handleSocketMsg);
+    return () => window.removeEventListener('tasker_socket_channel_message', handleSocketMsg);
+  }, [activeTarget, getChannelInfo, isOpen, user]);
+
+  // Fast live polling for active conversation (backup sync)
   useEffect(() => {
     if (isOpen && activeTarget) {
       fetchChannelMessages(activeTarget);
       const interval = setInterval(() => {
         fetchChannelMessages(activeTarget);
-      }, 2500);
+      }, 3500);
       return () => clearInterval(interval);
     }
   }, [isOpen, activeTarget, fetchChannelMessages]);

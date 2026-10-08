@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { taskApi, peopleApi, communityApi } from './services/api';
 import { checkForUpdates } from './services/updateChecker';
+import { getSocket, syncSocketUser } from './services/socketService';
 import { Sparkles, Download } from 'lucide-react';
 
 import AuthModal from './components/AuthModal';
@@ -30,9 +31,31 @@ import {
   requestNotificationPermission,
   showPhoneShadeNotification,
   scheduleTaskAlarms,
-  playAlertChime
+  playAlertChime,
+  getNotificationId
 } from './services/notificationService';
 import { getUnreadChatTargets, processInboxForUnread } from './services/chatNotification';
+
+// Persistent notification deduplication cache to guarantee a message notifies EXACTLY once
+const NOTIFIED_MSG_IDS_KEY = 'tasker_notified_msg_ids_v1';
+const notifiedMessageIds = new Set((() => {
+  try {
+    const raw = sessionStorage.getItem(NOTIFIED_MSG_IDS_KEY) || localStorage.getItem(NOTIFIED_MSG_IDS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+})());
+
+function recordNotifiedMessage(msgId) {
+  if (!msgId) return;
+  notifiedMessageIds.add(String(msgId));
+  try {
+    const arr = Array.from(notifiedMessageIds).slice(-150);
+    sessionStorage.setItem(NOTIFIED_MSG_IDS_KEY, JSON.stringify(arr));
+    localStorage.setItem(NOTIFIED_MSG_IDS_KEY, JSON.stringify(arr));
+  } catch {}
+}
 
 function MainApp() {
   const { user, loading } = useAuth();
@@ -157,7 +180,70 @@ function MainApp() {
     requestNotificationPermission();
   }, []);
 
-  // Live background poller for Direct (Personal) and Team messages -> triggers in-app and phone shade notifications
+  // Unified, deduplicated incoming message notification handler
+  const handleIncomingMessage = useCallback((msg) => {
+    if (!msg || !user) return;
+    const myU = (user.username || '').toLowerCase();
+    const senderU = (msg.senderUsername || '').toLowerCase();
+    if (!senderU || senderU === myU) return; // Do not notify for self-sent messages
+
+    const msgId = String(msg._id || msg.id || '');
+    if (msgId && notifiedMessageIds.has(msgId)) {
+      return; // Already notified once! Prevent loop completely!
+    }
+
+    const isDirect = msg.channelType === 'Direct';
+    if (isDirect) {
+      const channelId = (msg.channelId || '').toLowerCase();
+      // Ensure the direct message is intended for this user
+      if (!channelId.includes(myU)) return;
+    }
+
+    // Mark as notified in cache immediately
+    if (msgId) {
+      recordNotifiedMessage(msgId);
+    }
+
+    // Process unread badge indicator
+    processInboxForUnread([msg], user.username);
+
+    const title = isDirect
+      ? `💬 @${msg.senderUsername} (Direct Message)`
+      : `👥 Team Message from @${msg.senderUsername}`;
+    const body = msg.content || (msg.attachments && msg.attachments.length > 0 ? '📎 File attachment' : 'New message received');
+
+    // Play chime exactly once
+    playAlertChime();
+
+    // Trigger phone lockscreen, heads-up banner, shade & badge with deterministic ID
+    const notifId = getNotificationId(msgId || senderU, 1);
+    showPhoneShadeNotification(title, body, {
+      id: notifId,
+      channelId: 'tasker_messages',
+      badge: 1
+    });
+  }, [user]);
+
+  // Real-time Socket.IO listener for instantaneous (0ms latency) message & notification arrival
+  useEffect(() => {
+    if (!user) return;
+    const socket = getSocket();
+    syncSocketUser(user);
+
+    const onSocketInbox = (e) => {
+      const msg = e?.detail;
+      if (msg) {
+        handleIncomingMessage(msg);
+      }
+    };
+
+    window.addEventListener('tasker_socket_inbox_message', onSocketInbox);
+    return () => {
+      window.removeEventListener('tasker_socket_inbox_message', onSocketInbox);
+    };
+  }, [user, handleIncomingMessage]);
+
+  // Background fallback poller for Direct and Team messages (runs safely in background)
   useEffect(() => {
     if (!user) return;
     let lastSeenTime = Date.now();
@@ -166,38 +252,21 @@ function MainApp() {
       try {
         const inbox = await communityApi.getInboxMessages(new Date(lastSeenTime).toISOString());
         if (Array.isArray(inbox) && inbox.length > 0) {
-          processInboxForUnread(inbox, user.username);
-          const myU = (user.username || '').toLowerCase();
           for (const msg of inbox) {
-            const senderU = (msg.senderUsername || '').toLowerCase();
-            if (senderU && senderU !== myU) {
-              const msgTime = new Date(msg.createdAt).getTime();
-              if (msgTime > lastSeenTime) {
-                lastSeenTime = msgTime;
-              }
-
-              const isDirect = msg.channelType === 'Direct';
-              const title = isDirect
-                ? `💬 @${msg.senderUsername} (Direct Message)`
-                : `👥 Team Message from @${msg.senderUsername}`;
-              const body = msg.content || (msg.attachments && msg.attachments.length > 0 ? '📎 File attachment' : 'New message received');
-
-              // Play chime and send phone notification (Lock screen, shade, banner & badge) - NOT in bell icon
-              playAlertChime();
-              showPhoneShadeNotification(title, body, {
-                channelId: 'tasker_messages',
-                badge: 1
-              });
+            const msgTime = new Date(msg.createdAt).getTime();
+            if (msgTime > lastSeenTime) {
+              lastSeenTime = msgTime;
             }
+            handleIncomingMessage(msg);
           }
         }
       } catch (e) {
         // silent
       }
-    }, 3500);
+    }, 8000); // 8s safety backup check
 
     return () => clearInterval(inboxInterval);
-  }, [user]);
+  }, [user, handleIncomingMessage]);
 
   // When switching to community tab, mark global as read
   useEffect(() => {

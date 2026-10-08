@@ -22,7 +22,8 @@ function createWindow() {
     title: 'Tasker - Universal AI-Powered Productivity Suite',
     icon: iconPath,
     autoHideMenuBar: true,
-    backgroundColor: '#090a0f',
+    show: false, // Prevents black flash before UI is rendered
+    backgroundColor: '#f9fafb',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -38,6 +39,18 @@ function createWindow() {
       console.warn('Could not set window icon:', e);
     }
   }
+
+  // Smoothly show window only when renderer has painted the UI (eliminates black screen)
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
+
+  // Fallback to guarantee display if ready-to-show is delayed
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+  }, 800);
 
   // Always open external web links (like Google AI Studio) in user's default browser (Chrome/Edge/Firefox)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -69,21 +82,24 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, '../client/dist/index.html'));
 }
 
-// Enable autostart with Windows boot by default
+// Start window immediately without waiting for registry operations
 app.whenReady().then(() => {
-  try {
-    const loginItemSettings = app.getLoginItemSettings();
-    if (!loginItemSettings.openAtLogin) {
-      app.setLoginItemSettings({
-        openAtLogin: true,
-        args: ['--autostart']
-      });
-    }
-  } catch (err) {
-    console.error('Error configuring autostart:', err);
-  }
-
   createWindow();
+
+  // Asynchronously configure autostart so it never delays window launch
+  setTimeout(() => {
+    try {
+      const loginItemSettings = app.getLoginItemSettings();
+      if (!loginItemSettings.openAtLogin) {
+        app.setLoginItemSettings({
+          openAtLogin: true,
+          args: ['--autostart']
+        });
+      }
+    } catch (err) {
+      console.error('Error configuring autostart:', err);
+    }
+  }, 100);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

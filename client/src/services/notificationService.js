@@ -71,7 +71,7 @@ export async function requestNotificationPermission() {
         await LocalNotifications.requestPermissions();
       }
       try {
-        // 1. Chat Messages Channel
+        // 1. Chat Messages Channel (High Importance, Public Lock Screen)
         await LocalNotifications.createChannel({
           id: 'tasker_messages',
           name: 'Tasker Messages',
@@ -79,7 +79,7 @@ export async function requestNotificationPermission() {
           importance: 5,
           visibility: 1, // NotificationCompat.VISIBILITY_PUBLIC (Shows on Lock Screen)
           vibration: true,
-          useLights: true,
+          lights: true,
           lightColor: '#3b82f6'
         });
 
@@ -91,7 +91,7 @@ export async function requestNotificationPermission() {
           importance: 5,
           visibility: 1, // NotificationCompat.VISIBILITY_PUBLIC (Shows on Lock Screen)
           vibration: true,
-          useLights: true,
+          lights: true,
           lightColor: '#d946ef'
         });
 
@@ -103,7 +103,7 @@ export async function requestNotificationPermission() {
           importance: 5,
           visibility: 1,
           vibration: true,
-          useLights: true,
+          lights: true,
           lightColor: '#10b981'
         });
       } catch (ce) {
@@ -137,7 +137,11 @@ export async function showPhoneShadeNotification(title, body, options = {}) {
     ? options
     : { id: typeof options === 'number' ? options : undefined };
 
-  const id = opts.id || (Math.floor(Math.random() * 100000) + 1);
+  const id = opts.id || (
+    opts.messageId
+      ? getNotificationId(opts.messageId)
+      : (opts.tag ? getNotificationId(opts.tag) : Math.floor(Math.random() * 100000) + 1)
+  );
   const channelId = opts.channelId || 'tasker_messages';
   const badge = typeof opts.badge === 'number' ? opts.badge : 1;
 
@@ -153,6 +157,8 @@ export async function showPhoneShadeNotification(title, body, options = {}) {
       const payload = {
         title: title || 'Tasker',
         body: body || '',
+        largeBody: body || '',
+        summaryText: opts.channelId === 'tasker_messages' ? 'Message' : 'Tasker Alert',
         id: id,
         channelId: channelId,
         smallIcon: 'ic_stat_tasker',

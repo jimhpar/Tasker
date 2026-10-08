@@ -76,6 +76,11 @@ router.post('/messages', optionalAuth, async (req, res) => {
     let populated = await Message.findById(saved._id).populate('senderId', 'username profile');
     if (!populated) populated = saved;
 
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('new_community_message', populated);
+    }
+
     res.status(201).json(populated);
   } catch (err) {
     console.error('Failed to send community message:', err);
@@ -141,6 +146,13 @@ router.post('/channel/:channelType/:channelId', optionalAuth, async (req, res) =
     let populated = await Message.findById(saved._id).populate('senderId', 'username profile');
     if (!populated) populated = saved;
 
+    // Real-time instantaneous dispatch via Socket.IO (0ms latency)
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('new_channel_message', populated);
+      io.emit('new_inbox_message', populated);
+    }
+
     res.status(201).json(populated);
   } catch (err) {
     console.error('Failed to send channel message:', err);
@@ -181,7 +193,8 @@ router.get('/inbox', async (req, res) => {
       myTeamIds = userTeams.map(t => t._id.toString());
     }
 
-    const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 30 * 60 * 1000);
+    const hasSince = !!req.query.since;
+    const since = hasSince ? new Date(req.query.since) : new Date(Date.now() - 30 * 60 * 1000);
     const directRegex = new RegExp(`(^|_)(${myUsername})(_|$)`, 'i');
 
     const orConditions = [
@@ -194,7 +207,7 @@ router.get('/inbox', async (req, res) => {
 
     const messages = await Message.find({
       channelType: { $in: ['Direct', 'Team'] },
-      createdAt: { $gte: since },
+      createdAt: hasSince ? { $gt: since } : { $gte: since },
       senderUsername: { $ne: myUsername },
       $or: orConditions
     })

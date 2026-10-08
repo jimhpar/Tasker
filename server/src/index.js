@@ -49,6 +49,9 @@ const io = new Server(server, {
   }
 });
 
+// Expose io instance to Express routes
+app.set('io', io);
+
 // Real-time Socket & WebRTC Signaling
 const onlineUsers = new Map(); // userId -> socketId
 
@@ -58,6 +61,15 @@ io.on('connection', (socket) => {
       onlineUsers.set(userData.userId, socket.id);
       io.emit('online_users_count', onlineUsers.size);
     }
+  });
+
+  socket.on('join_user', ({ username, userId }) => {
+    if (username) socket.join(`user_${String(username).toLowerCase()}`);
+    if (userId) socket.join(`user_id_${String(userId)}`);
+  });
+
+  socket.on('join_team', ({ teamId }) => {
+    if (teamId) socket.join(`team_${String(teamId)}`);
   });
 
   // Global Community Message broadcast
