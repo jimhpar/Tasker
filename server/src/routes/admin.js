@@ -137,6 +137,11 @@ router.post('/users', authenticateToken, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
+    if (!email || !email.trim()) {
+      return res.status(400).json({ error: 'Email address is required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
     const cleanUsername = username.trim().toLowerCase();
     if (cleanUsername.length < 5) {
       return res.status(400).json({ error: 'Username must be at least 5 characters' });
@@ -147,12 +152,17 @@ router.post('/users', authenticateToken, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
+    const existingEmail = await User.findOne({ email: cleanEmail });
+    if (existingEmail) {
+      return res.status(400).json({ error: 'Email is already registered' });
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new User({
       username: cleanUsername,
-      email: email ? email.trim().toLowerCase() : '',
+      email: cleanEmail,
       phone: phone ? phone.trim() : '',
       role: role === 'admin' ? 'admin' : 'user',
       plan: ['free', 'pro', 'business', 'enterprise'].includes(plan) ? plan : 'free',

@@ -28,7 +28,8 @@ import {
   stopTaskTimeMonitoring,
   addNotification,
   requestNotificationPermission,
-  showPhoneShadeNotification
+  showPhoneShadeNotification,
+  scheduleTaskAlarms
 } from './services/notificationService';
 import { getUnreadChatTargets, processInboxForUnread } from './services/chatNotification';
 
@@ -181,16 +182,13 @@ function MainApp() {
 
               const body = msg.content || (msg.audioData ? '🎤 Voice message' : 'New message');
 
-              // 1. In-App Notification (Toast / Notification Center / Sound)
+              // In-App Notification & Phone Notification Shade with Lock Screen & Badge
               addNotification({
                 title,
                 message: body,
                 type: 'chat',
                 playSound: true
               });
-
-              // 2. Phone Notification Shade (Native Android status bar)
-              showPhoneShadeNotification(title, body);
             }
           }
         }
@@ -215,6 +213,7 @@ function MainApp() {
     try {
       const data = await taskApi.getAll();
       setTasks(data);
+      scheduleTaskAlarms(data);
     } catch (e) {
       console.error(e);
     }

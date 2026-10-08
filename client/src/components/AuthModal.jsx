@@ -96,6 +96,13 @@ export default function AuthModal() {
         if (!username.trim() || !password) {
           throw new Error('Username and password are required');
         }
+        if (!email.trim()) {
+          throw new Error('Email address is required');
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+          throw new Error('Please enter a valid email address');
+        }
         if (username.trim().length < 5) {
           throw new Error('Username must be at least 5 characters');
         }
@@ -337,7 +344,7 @@ export default function AuthModal() {
               {/* Email */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
-                  Email (Optional)
+                  Email Address *
                 </label>
                 <input
                   type="email"
@@ -345,6 +352,7 @@ export default function AuthModal() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{ width: '100%', padding: '10px 14px', fontSize: '0.95rem' }}
+                  required
                 />
               </div>
             </>

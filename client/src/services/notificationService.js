@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
 // Tasker Real-time Notification & Time Management Alert Service
-// Features: Web Audio API sound chime, desktop alert notifications, Android shade notifications, and automated task monitoring
+// Features: Web Audio API sound chime, desktop alerts, Android lock screen & shade notifications, and automated task alarm scheduling
 
 const NOTIFICATIONS_KEY = 'tasker_active_notifications_v1';
 const SOUND_MUTED_KEY = 'tasker_sound_alerts_muted';
@@ -62,7 +62,7 @@ export function playAlertChime() {
   }
 }
 
-// Request permission for push/local notifications on device
+// Request permission for push/local notifications on device & register channels with public lock screen visibility
 export async function requestNotificationPermission() {
   try {
     if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
@@ -71,13 +71,40 @@ export async function requestNotificationPermission() {
         await LocalNotifications.requestPermissions();
       }
       try {
+        // 1. Chat Messages Channel
         await LocalNotifications.createChannel({
           id: 'tasker_messages',
           name: 'Tasker Messages',
           description: 'Direct and team chat notifications',
           importance: 5,
+          visibility: 1, // NotificationCompat.VISIBILITY_PUBLIC (Shows on Lock Screen)
+          vibration: true,
+          useLights: true,
+          lightColor: '#3b82f6'
+        });
+
+        // 2. Task Reminders & Deadlines Channel
+        await LocalNotifications.createChannel({
+          id: 'tasker_tasks',
+          name: 'Tasker Task Reminders',
+          description: 'Task alerts, start time reminders, and deadline notifications',
+          importance: 5,
+          visibility: 1, // NotificationCompat.VISIBILITY_PUBLIC (Shows on Lock Screen)
+          vibration: true,
+          useLights: true,
+          lightColor: '#d946ef'
+        });
+
+        // 3. System & AI Alerts Channel
+        await LocalNotifications.createChannel({
+          id: 'tasker_alerts',
+          name: 'Tasker System & AI Alerts',
+          description: 'System announcements and AI time management alerts',
+          importance: 5,
           visibility: 1,
-          vibration: true
+          vibration: true,
+          useLights: true,
+          lightColor: '#10b981'
         });
       } catch (ce) {
         console.warn('Channel creation error:', ce);
@@ -92,21 +119,51 @@ export async function requestNotificationPermission() {
   }
 }
 
-// Show native phone notification shade on Android & fallback on desktop
-export async function showPhoneShadeNotification(title, body, id = Math.floor(Math.random() * 100000) + 1) {
+// Helper: Convert string task ID to deterministic integer ID (32-bit positive integer)
+export function getNotificationId(taskId, suffix = 0) {
+  if (!taskId) return Math.floor(Math.random() * 100000) + 1;
+  let hash = 0;
+  const str = String(taskId) + '_' + String(suffix);
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash % 2147483640) + 1;
+}
+
+// Show native phone notification on Android (lock screen, notification shade, and icon badge) & fallback on desktop
+export async function showPhoneShadeNotification(title, body, options = {}) {
+  const opts = (typeof options === 'object' && options !== null)
+    ? options
+    : { id: typeof options === 'number' ? options : undefined };
+
+  const id = opts.id || (Math.floor(Math.random() * 100000) + 1);
+  const channelId = opts.channelId || 'tasker_messages';
+  const badge = typeof opts.badge === 'number' ? opts.badge : 1;
+
   try {
     if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+      const payload = {
+        title: title,
+        body: body,
+        id: id,
+        channelId: channelId,
+        smallIcon: 'ic_launcher',
+        iconColor: '#3b82f6',
+        foreground: true,
+        badge: badge,
+        autoCancel: true
+      };
+
+      if (opts.schedule && opts.schedule.at) {
+        payload.schedule = {
+          at: new Date(opts.schedule.at),
+          allowWhileIdle: true
+        };
+      }
+
       await LocalNotifications.schedule({
-        notifications: [
-          {
-            title: title,
-            body: body,
-            id: id,
-            channelId: 'tasker_messages',
-            schedule: { at: new Date(Date.now() + 100) },
-            smallIcon: 'ic_launcher'
-          }
-        ]
+        notifications: [payload]
       });
       return;
     }
@@ -115,6 +172,17 @@ export async function showPhoneShadeNotification(title, body, id = Math.floor(Ma
   }
 
   showDesktopNotification(title, body);
+}
+
+// Clear all delivered notifications from shade & reset badge
+export async function clearDeliveredPhoneNotifications() {
+  try {
+    if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+      await LocalNotifications.removeAllDeliveredNotifications();
+    }
+  } catch (e) {
+    console.warn('Error clearing delivered notifications:', e);
+  }
 }
 
 // Show native desktop system notification
@@ -160,8 +228,8 @@ export function saveNotifications(notifications) {
   }
 }
 
-// Add a single notification with sound chime
-export function addNotification({ title, message, type = 'reminder', taskId = null, playSound = true }) {
+// Add a single notification with sound chime, lock screen display, and badge count
+export function addNotification({ title, message, type = 'reminder', taskId = null, playSound = true, badge = null }) {
   const current = getStoredNotifications();
 
   // Avoid duplicate identical notifications within 10 minutes
@@ -178,7 +246,7 @@ export function addNotification({ title, message, type = 'reminder', taskId = nu
     id: 'notif_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
     title,
     message,
-    type, // 'not_started' | 'in_progress_stuck' | 'overdue' | 'reminder' | 'ai_planner'
+    type, // 'not_started' | 'in_progress_stuck' | 'overdue' | 'reminder' | 'ai_planner' | 'chat'
     taskId,
     read: false,
     timestamp: new Date().toISOString()
@@ -190,7 +258,17 @@ export function addNotification({ title, message, type = 'reminder', taskId = nu
   if (playSound) {
     playAlertChime();
   }
-  showPhoneShadeNotification(title, message);
+
+  const unreadCount = updated.filter(n => !n.read).length;
+  const channelId = type === 'chat'
+    ? 'tasker_messages'
+    : (['not_started', 'in_progress_stuck', 'overdue', 'reminder'].includes(type) ? 'tasker_tasks' : 'tasker_alerts');
+
+  showPhoneShadeNotification(title, message, {
+    channelId,
+    badge: badge !== null ? badge : (unreadCount || 1),
+    type
+  });
 
   return item;
 }
@@ -202,16 +280,121 @@ export function markAsRead(notificationId) {
   saveNotifications(updated);
 }
 
-// Mark all notifications as read
+// Mark all notifications as read & clear shade
 export function markAllAsRead() {
   const current = getStoredNotifications();
   const updated = current.map(n => ({ ...n, read: true }));
   saveNotifications(updated);
+  clearDeliveredPhoneNotifications();
 }
 
 // Clear all notifications
 export function clearAllNotifications() {
   saveNotifications([]);
+  clearDeliveredPhoneNotifications();
+}
+
+// Pre-schedule future task alarms into Android OS AlarmManager (fires on Lock Screen even in sleep/Doze)
+export async function scheduleTaskAlarms(tasks) {
+  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
+  if (!Array.isArray(tasks) || tasks.length === 0) return;
+
+  try {
+    const notificationsToSchedule = [];
+    const now = Date.now();
+
+    for (const task of tasks) {
+      if (task.status === 'Done' || task.isTrash) continue;
+
+      const title = task.title || 'Upcoming Task';
+
+      // 1. Scheduled Start Time Reminder
+      if (task.status === 'To Do' && (task.scheduledStartTime || task.dueTime)) {
+        const timeStr = task.scheduledStartTime || task.dueTime;
+        const [h, m] = timeStr.split(':').map(Number);
+        if (!isNaN(h) && !isNaN(m)) {
+          const taskDate = task.scheduledDate ? new Date(task.scheduledDate) : new Date();
+          taskDate.setHours(h, m, 0, 0);
+
+          if (taskDate.getTime() > now + 30000) { // More than 30s in the future
+            notificationsToSchedule.push({
+              id: getNotificationId(task._id, 1),
+              title: task.engageAI ? '🤖 AI Alert: কাজ শুরু করার সময় হয়েছে' : '⏰ Task Reminder: কাজ শুরু করুন',
+              body: `"${title}" নির্ধারিত সময় (${timeStr}) হয়ে গেছে। অবিলম্বে শুরু করুন।`,
+              channelId: 'tasker_tasks',
+              smallIcon: 'ic_launcher',
+              iconColor: '#3b82f6',
+              foreground: true,
+              badge: 1,
+              autoCancel: true,
+              schedule: {
+                at: taskDate,
+                allowWhileIdle: true
+              }
+            });
+          }
+        }
+      }
+
+      // 2. Scheduled End Time Alert
+      if (task.scheduledEndTime) {
+        const [h, m] = task.scheduledEndTime.split(':').map(Number);
+        if (!isNaN(h) && !isNaN(m)) {
+          const taskDate = task.scheduledDate ? new Date(task.scheduledDate) : new Date();
+          taskDate.setHours(h, m, 0, 0);
+
+          if (taskDate.getTime() > now + 30000) {
+            notificationsToSchedule.push({
+              id: getNotificationId(task._id, 2),
+              title: '⚠️ Task Alert: সময় সমাপ্তির নোটিফিকেশন',
+              body: `"${title}" কাজটির নির্ধারিত শেষ সময় পার হয়েছে। সমাপ্তি স্ট্যাটাস চেক করুন।`,
+              channelId: 'tasker_tasks',
+              smallIcon: 'ic_launcher',
+              iconColor: '#ef4444',
+              foreground: true,
+              badge: 1,
+              autoCancel: true,
+              schedule: {
+                at: taskDate,
+                allowWhileIdle: true
+              }
+            });
+          }
+        }
+      }
+
+      // 3. Due Date Evening Reminder (6:00 PM on due date)
+      if (task.status !== 'Done' && task.dueDate) {
+        const dueDateObj = new Date(task.dueDate);
+        dueDateObj.setHours(18, 0, 0, 0);
+        if (dueDateObj.getTime() > now + 30000) {
+          notificationsToSchedule.push({
+            id: getNotificationId(task._id, 3),
+            title: task.engageAI ? '🤖 AI Alert: কাজ শেষ হয়নি!' : '📅 Daily Reminder: কাজ সম্পন্ন করুন',
+            body: `"${title}" আজকের জন্য নির্ধারিত কাজ এখনো সম্পন্ন হয়নি। অনুগ্রহ করে সমাপ্ত করুন।`,
+            channelId: 'tasker_tasks',
+            smallIcon: 'ic_launcher',
+            iconColor: '#f59e0b',
+            foreground: true,
+            badge: 1,
+            autoCancel: true,
+            schedule: {
+              at: dueDateObj,
+              allowWhileIdle: true
+            }
+          });
+        }
+      }
+    }
+
+    if (notificationsToSchedule.length > 0) {
+      await LocalNotifications.schedule({
+        notifications: notificationsToSchedule
+      });
+    }
+  } catch (e) {
+    console.warn('Error scheduling task alarms:', e);
+  }
 }
 
 // Background Monitor Interval
@@ -231,8 +414,8 @@ export function startTaskTimeMonitoring(getTasksCallback) {
       const currentTimeInMins = currentHours * 60 + currentMinutes;
 
       tasks.forEach((task) => {
-        // Skip done tasks
-        if (task.status === 'Done') return;
+        // Skip done tasks or trashed tasks
+        if (task.status === 'Done' || task.isTrash) return;
 
         const isAIEngaged = task.engageAI === true;
         const taskTitle = task.title || 'Untitled Task';
@@ -293,9 +476,9 @@ export function startTaskTimeMonitoring(getTasksCallback) {
     }
   };
 
-  // Run initial check after 3 seconds, then every 40 seconds
+  // Run initial check after 3 seconds, then every 30 seconds
   setTimeout(checkTasks, 3000);
-  monitorIntervalId = setInterval(checkTasks, 40000);
+  monitorIntervalId = setInterval(checkTasks, 30000);
 }
 
 export function stopTaskTimeMonitoring() {

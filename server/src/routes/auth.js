@@ -73,6 +73,16 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
+    if (!email || !email.trim()) {
+      return res.status(400).json({ error: 'Email address is required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid email address' });
+    }
+
     const cleanUsername = username.trim().toLowerCase();
     if (cleanUsername.length < 5) {
       return res.status(400).json({ error: 'Username must be at least 5 characters' });
@@ -83,11 +93,9 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
-    if (email && email.trim()) {
-      const existingEmail = await User.findOne({ email: email.trim().toLowerCase() });
-      if (existingEmail) {
-        return res.status(400).json({ error: 'Email is already registered' });
-      }
+    const existingEmail = await User.findOne({ email: cleanEmail });
+    if (existingEmail) {
+      return res.status(400).json({ error: 'Email is already registered' });
     }
 
     const totalUsers = await User.countDocuments();
@@ -98,7 +106,7 @@ router.post('/register', async (req, res) => {
 
     const newUser = new User({
       username: cleanUsername,
-      email: email ? email.trim().toLowerCase() : '',
+      email: cleanEmail,
       phone: phone ? phone.trim() : '',
       role: isFirstUserOrAdmin ? 'admin' : 'user',
       plan: 'free',
