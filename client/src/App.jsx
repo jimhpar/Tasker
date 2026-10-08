@@ -302,12 +302,6 @@ function MainApp() {
           teamRequestsCount={teamRequestsCount}
           pendingConnectionRequestsCount={pendingConnectionRequestsCount}
           hasGlobalUnread={hasGlobalUnread}
-          hasChatUnread={hasChatUnread}
-          isChatOpen={showChatDrawer}
-          onToggleChat={() => {
-            setMobileMenuOpen(false);
-            setShowChatDrawer(prev => !prev);
-          }}
           mobileOpen={mobileMenuOpen}
           onCloseMobile={() => setMobileMenuOpen(false)}
           onOpenAiChat={() => {
